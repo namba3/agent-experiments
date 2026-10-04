@@ -1,0 +1,17 @@
+# Agent Framework example
+agent-framework-core
+agent-framework-ollama
+mcp
+
+# LangGraph agent and local API server
+langgraph
+langchain-core
+langchain-ollama
+langchain-mcp-adapters
+fastapi
+uvicorn
+
+# Shared clients and terminal output
+ollama
+openai
+rich

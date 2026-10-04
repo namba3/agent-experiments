@@ -21,6 +21,8 @@ entry point.
   environment variables. Use portable command names or relative paths as
   defaults where practical.
 - Keep `.env` files and other local configuration out of version control.
+- List direct third-party Python imports in `requirements.txt`; do not list
+  Python standard-library modules.
 
 ## Changes
 
