@@ -115,6 +115,9 @@ uv run --locked ruff format --check .
 uv run --locked python -W error::ResourceWarning -m unittest discover -v
 ```
 
+GitHub Actions runs the same checks on pushes, pull requests, and manual runs
+with Python 3.10 and 3.14.
+
 After updating dependencies, run `uv lock`, then regenerate the pip file with
 `uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`.
 See [`AGENTS.md`](AGENTS.md) for repository editing guidance.

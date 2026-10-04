@@ -111,6 +111,9 @@ uv run --locked ruff format --check .
 uv run --locked python -W error::ResourceWarning -m unittest discover -v
 ```
 
+同じチェックはGitHub Actionsでpush、pull request、手動実行時にPython 3.10と3.14で
+自動実行されます。
+
 依存の更新後は `uv lock` を実行し、`uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`
 でpip用ファイルを再生成してください。リポジトリの編集ルールは [`AGENTS.md`](AGENTS.md) を参照してください。
 
