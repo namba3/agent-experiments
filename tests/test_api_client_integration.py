@@ -12,6 +12,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -319,6 +320,71 @@ class ApiClientHttpIntegrationTests(unittest.TestCase):
 
 
 class ApiClientCliIntegrationTests(unittest.TestCase):
+    def test_main_interactive_mode_sends_turns_and_stops_on_exit_command(self) -> None:
+        requests: list[httpx.Request] = []
+        clients: list[AsyncOpenAI] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200, json=completion_response(f"answer-{len(requests)}")
+            )
+
+        def client_factory(**kwargs: Any) -> AsyncOpenAI:
+            client = AsyncOpenAI(
+                **kwargs,
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            )
+            clients.append(client)
+            return client
+
+        argv = [
+            "agent_api_client.py",
+            "--model",
+            "test-model",
+            "--interactive",
+            "--system",
+            "be concise",
+        ]
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(sys, "stdin", SimpleNamespace(isatty=lambda: True)),
+            patch.object(
+                agent_api_client,
+                "AsyncOpenAI",
+                side_effect=client_factory,
+            ),
+            patch.object(
+                agent_api_client.console,
+                "input",
+                side_effect=["first question", "second question", "/exit"],
+            ),
+            patch.object(agent_api_client.console, "print"),
+        ):
+            exit_code = asyncio.run(agent_api_client.main())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(clients[0].is_closed())
+        self.assertEqual(len(requests), 2)
+        first_turn = json.loads(requests[0].content)["messages"]
+        second_turn = json.loads(requests[1].content)["messages"]
+        self.assertEqual(
+            first_turn,
+            [
+                {"role": "system", "content": "be concise"},
+                {"role": "user", "content": "first question"},
+            ],
+        )
+        self.assertEqual(
+            second_turn,
+            [
+                {"role": "system", "content": "be concise"},
+                {"role": "user", "content": "first question"},
+                {"role": "assistant", "content": "answer-1"},
+                {"role": "user", "content": "second question"},
+            ],
+        )
+
     def test_main_sends_cli_message_and_image_and_prints_json(self) -> None:
         requests: list[httpx.Request] = []
         clients: list[AsyncOpenAI] = []
