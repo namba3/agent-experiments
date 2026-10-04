@@ -1,11 +1,13 @@
 import asyncio
 import argparse
+import os
 from agent_framework import Agent, tool, MCPStdioTool
 from agent_framework.ollama import OllamaChatClient
 from rich.console import Console
 from rich.live import Live
 
 console = Console()
+DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 
 @tool
 def get_weather(city: str) -> str:
@@ -30,8 +32,7 @@ async def main(model: str):
     )
     docker_mcp = MCPStdioTool(
         name="DockerMcp",
-        # command="docker",
-        command="/Docker/host/bin/docker.exe",
+        command=DOCKER_MCP_COMMAND,
         args=["mcp", "gateway", "run", "--profile", "default"]
     )
     agent = Agent(

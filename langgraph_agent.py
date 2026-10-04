@@ -12,6 +12,7 @@ import gc
 import itertools
 import json
 import math
+import os
 import re
 import shlex
 import sys
@@ -26,9 +27,9 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
-DOCKER_MCP_COMMAND = "/Docker/host/bin/docker.exe"
+DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
-DOCKER_MCP_SILENT_COMMAND = "/bin/sh"
+DOCKER_MCP_SILENT_COMMAND = "sh"
 DEFAULT_CONTEXT_LIMIT = 12000
 MESSAGES_TO_KEEP = 6
 DEFAULT_MAX_REFINE_LOOPS = 2
