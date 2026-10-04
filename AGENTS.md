@@ -3,7 +3,7 @@
 ## Scope
 
 This repository contains small Python experiments for agent frameworks and a
-client for the local LangGraph API. Keep each script runnable as a standalone
+client for the local agent API. Keep each script runnable as a standalone
 entry point.
 
 ## File naming

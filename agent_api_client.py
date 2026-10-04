@@ -1,4 +1,4 @@
-"""OpenAI-compatible CLI client for the local LangGraph API."""
+"""OpenAI-compatible CLI client for the local agent API."""
 
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ async def api_call_with_spinner(
         request["max_tokens"] = max_tokens
 
     if show_spinner:
-        with console.status("[cyan]LangGraph API に問い合わせ中…[/cyan]", spinner="dots"):
+        with console.status("[cyan]Agent API に問い合わせ中…[/cyan]", spinner="dots"):
             response = await client.chat.completions.create(
                 **request, timeout=timeout
             )
@@ -274,7 +274,7 @@ async def send_turn(
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="OpenAI 互換 LangGraph API クライアント")
+    parser = argparse.ArgumentParser(description="OpenAI 互換 Agent API クライアント")
     input_group = parser.add_mutually_exclusive_group()
     input_group.add_argument("--message", type=str, default=None, help="送信するメッセージ")
     input_group.add_argument(

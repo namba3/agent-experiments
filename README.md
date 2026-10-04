@@ -12,7 +12,7 @@ LangGraph の Ollama エージェント、および両エージェント用の O
 | --- | --- |
 | `agent_framework_agent.py` | Agent Framework と Ollama によるエージェント。LangGraph版と同じCLI設定、RESEARCH/検証フロー、会話圧縮、OpenAI互換APIを備えます。 |
 | `langgraph_agent.py` | Ollama を使う LangGraph エージェント。対話実行または OpenAI 互換 API サーバーとして起動できます。 |
-| `langgraph_api_client.py` | OpenAI 互換 API サーバーに接続する CLI クライアント。対話、ストリーミング、画像添付に対応します。 |
+| `agent_api_client.py` | OpenAI 互換 API サーバーに接続する CLI クライアント。対話、ストリーミング、画像添付に対応します。 |
 
 ## セットアップ
 
@@ -58,7 +58,7 @@ OpenAI互換APIサーバーを起動し、別のターミナルからクライ�
 
 ```bash
 python agent_framework_agent.py --model <ollama-model> --serve
-python langgraph_api_client.py --message "Explain how RAG works."
+python agent_api_client.py --message "Explain how RAG works."
 ```
 
 同じサーバーCLIは `langgraph_agent.py --serve` でも起動できます。
@@ -67,7 +67,7 @@ python langgraph_api_client.py --message "Explain how RAG works."
 ストリーミングや画像添付も指定できます。
 
 ```bash
-python langgraph_api_client.py --message "Summarize this image." --image path/to/image.png --stream
+python agent_api_client.py --message "Summarize this image." --image path/to/image.png --stream
 ```
 
 各スクリプトの全オプションは `--help` で確認できます。
@@ -81,7 +81,7 @@ python langgraph_api_client.py --message "Summarize this image." --image path/to
   （推論を重ねて検証）、`RESEARCH`（外部情報を調査して検証）です。
 - Agent Framework版とLangGraph版は同じ `--context-limit`、`--max-refine-loops`、
   `--temperature`、`--seed`、`--top-p`、`--num-predict`、APIの `--host` / `--port` を受け付けます。
-- `langgraph_api_client.py` は既定で `http://127.0.0.1:8000/v1` に接続します。
+- `agent_api_client.py` は既定で `http://127.0.0.1:8000/v1` に接続します。
 - 画像添付は JPEG、PNG、GIF、WebP に対応し、最大サイズは 20 MiB です。
 
 ```bash

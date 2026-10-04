@@ -11,7 +11,7 @@ with Agent Framework and LangGraph, plus a shared OpenAI-compatible API client.
 | --- | --- |
 | `agent_framework_agent.py` | An Agent Framework and Ollama agent with the same CLI settings, RESEARCH/verification flow, context compaction, and OpenAI-compatible API as the LangGraph version. |
 | `langgraph_agent.py` | A LangGraph agent using Ollama. Run it interactively or start it as an OpenAI-compatible API server. |
-| `langgraph_api_client.py` | A CLI client for the OpenAI-compatible API. Supports interactive chat, streaming, and image attachments. |
+| `agent_api_client.py` | A CLI client for the OpenAI-compatible API. Supports interactive chat, streaming, and image attachments. |
 
 ## Setup
 
@@ -58,7 +58,7 @@ default, the server listens on `127.0.0.1:8000`.
 
 ```bash
 python agent_framework_agent.py --model <ollama-model> --serve
-python langgraph_api_client.py --message "Explain how RAG works."
+python agent_api_client.py --message "Explain how RAG works."
 ```
 
 The same server CLI is also available through `langgraph_agent.py --serve`.
@@ -67,7 +67,7 @@ If no model is specified, the client selects one from the API's `/v1/models`
 endpoint. Streaming and image attachments are also available:
 
 ```bash
-python langgraph_api_client.py --message "Summarize this image." --image path/to/image.png --stream
+python agent_api_client.py --message "Summarize this image." --image path/to/image.png --stream
 ```
 
 Run any script with `--help` to see all available options.
@@ -83,7 +83,7 @@ Run any script with `--help` to see all available options.
   external information).
 - Both agent scripts accept the same `--context-limit`, `--max-refine-loops`,
   `--temperature`, `--seed`, `--top-p`, `--num-predict`, and API `--host` / `--port` options.
-- `langgraph_api_client.py` connects to `http://127.0.0.1:8000/v1` by default.
+- `agent_api_client.py` connects to `http://127.0.0.1:8000/v1` by default.
 - Image attachments support JPEG, PNG, GIF, and WebP, up to 20 MiB.
 
 ```bash
