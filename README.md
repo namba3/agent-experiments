@@ -1,8 +1,8 @@
 # Agent Experiments
 
-小規模な Python エージェント実験用リポジトリです。Agent Framework と
-LangGraph の Ollama エージェント、および両エージェント用の OpenAI 互換API
-クライアントを収録しています。
+Python での AI エージェント実装を試すための実験用リポジトリです。
+Agent Framework と LangGraph を使った Ollama エージェントを収録し、実装や機能を
+比較・検証できます。エージェントに接続する OpenAI 互換 API クライアントも含みます。
 
 [English](README.en.md)
 

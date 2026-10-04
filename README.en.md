@@ -1,7 +1,9 @@
 # Agent Experiments
 
-A small collection of Python agent experiments. It includes Ollama agents built
-with Agent Framework and LangGraph, plus a shared OpenAI-compatible API client.
+A repository for experimenting with Python implementations of AI agents. It
+includes Ollama agents built with Agent Framework and LangGraph for comparing
+and evaluating their implementations and features, plus an OpenAI-compatible
+API client for connecting to them.
 
 [日本語](README.md)
 
