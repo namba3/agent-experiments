@@ -1,8 +1,7 @@
 # Agent Experiments
 
 A small collection of Python agent experiments. It includes Ollama agents built
-with Agent Framework and LangGraph, plus an OpenAI-compatible CLI client for the
-LangGraph API.
+with Agent Framework and LangGraph, plus a shared OpenAI-compatible API client.
 
 [日本語](README.md)
 
@@ -10,7 +9,7 @@ LangGraph API.
 
 | File | Description |
 | --- | --- |
-| `agent_framework_agent.py` | An Agent Framework and Ollama weather-agent example. Its weather tool returns a fixed sample response. It connects to the Docker MCP gateway. |
+| `agent_framework_agent.py` | An Agent Framework and Ollama agent with the same CLI settings, RESEARCH/verification flow, context compaction, and OpenAI-compatible API as the LangGraph version. |
 | `langgraph_agent.py` | A LangGraph agent using Ollama. Run it interactively or start it as an OpenAI-compatible API server. |
 | `langgraph_api_client.py` | A CLI client for the OpenAI-compatible API. Supports interactive chat, streaming, and image attachments. |
 
@@ -36,15 +35,16 @@ connect to Ollama at `http://localhost:11434` by default.
 
 ## Usage
 
-Run the Agent Framework example. The Docker MCP gateway command must be
-available:
+Run the Agent Framework agent interactively or pass a single message:
 
 ```bash
 python agent_framework_agent.py --model <ollama-model>
+python agent_framework_agent.py --model <ollama-model> --message "Explain how RAG works."
 ```
 
-Set the `DOCKER_MCP_COMMAND` environment variable to select the Docker
-executable. It defaults to `docker`.
+Pass `--with-docker-mcp` to use the Docker MCP gateway. Set the
+`DOCKER_MCP_COMMAND` environment variable to select the Docker executable; it
+defaults to `docker`.
 
 Run the LangGraph agent interactively or pass it a single message:
 
@@ -53,13 +53,15 @@ python langgraph_agent.py --model <ollama-model>
 python langgraph_agent.py --model <ollama-model> --message "Explain how RAG works."
 ```
 
-Start the LangGraph API server, then run the client in another terminal. By
+Start either OpenAI-compatible API server, then run the client in another terminal. By
 default, the server listens on `127.0.0.1:8000`.
 
 ```bash
-python langgraph_agent.py --model <ollama-model> --serve
+python agent_framework_agent.py --model <ollama-model> --serve
 python langgraph_api_client.py --message "Explain how RAG works."
 ```
+
+The same server CLI is also available through `langgraph_agent.py --serve`.
 
 If no model is specified, the client selects one from the API's `/v1/models`
 endpoint. Streaming and image attachments are also available:
@@ -72,15 +74,17 @@ Run any script with `--help` to see all available options.
 
 ## Configuration and behavior
 
-- Docker MCP is disabled by default in the LangGraph agent. Enable it with
-  `--with-docker-mcp`. The Agent Framework example always connects to it.
+- Docker MCP is disabled by default in both agents. Enable it with
+  `--with-docker-mcp`.
 - The RESEARCH route requires available tools, so pass both
   `--enable-research` and `--with-docker-mcp`.
+- Both agent scripts accept the same `--context-limit`, `--max-refine-loops`,
+  `--temperature`, `--seed`, `--top-p`, `--num-predict`, and API `--host` / `--port` options.
 - `langgraph_api_client.py` connects to `http://127.0.0.1:8000/v1` by default.
 - Image attachments support JPEG, PNG, GIF, and WebP, up to 20 MiB.
 
 ```bash
-python langgraph_agent.py --model <ollama-model> --enable-research --with-docker-mcp
+python agent_framework_agent.py --model <ollama-model> --enable-research --with-docker-mcp
 ```
 
 See [`requirements.txt`](requirements.txt) for dependencies and [`AGENTS.md`](AGENTS.md)
