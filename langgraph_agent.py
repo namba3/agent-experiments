@@ -367,7 +367,7 @@ def api_messages_to_langchain(messages: list[dict[str, Any]]) -> list[Any]:
             content = normalized_content
         elif role == "user" and not isinstance(content, str):
             raise ValueError("user content must be text or an array of content parts")
-        else:
+        elif role != "user":
             raise ValueError(f"unsupported message role: {role}")
 
         if role in {"system", "developer"}:

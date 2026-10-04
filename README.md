@@ -90,3 +90,11 @@ python agent_framework_agent.py --model <ollama-model> --enable-research --with-
 
 依存パッケージは [`requirements.txt`](requirements.txt)、リポジトリの編集ルールは
 [`AGENTS.md`](AGENTS.md) を参照してください。
+
+## テスト
+
+OllamaやDocker MCPを起動せずに単体テストを実行できます。
+
+```bash
+python -m unittest discover -v
+```

@@ -92,3 +92,11 @@ python agent_framework_agent.py --model <ollama-model> --enable-research --with-
 
 See [`requirements.txt`](requirements.txt) for dependencies and [`AGENTS.md`](AGENTS.md)
 for repository editing guidance.
+
+## Tests
+
+Run the unit tests without starting Ollama or Docker MCP:
+
+```bash
+python -m unittest discover -v
+```
