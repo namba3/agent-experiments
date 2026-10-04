@@ -103,18 +103,15 @@ python agent_framework_agent.py --model <ollama-model> --enable-research --with-
 
 ## 開発チェック
 
-ロック済みの開発環境で静的チェックとテストを実行します。
+ロック済みの開発環境で静的チェックを実行します。
 
 ```bash
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked python -W error::ResourceWarning -m coverage run \
-  -m unittest discover -v
-uv run --locked coverage report
 ```
 
-同じチェックはGitHub Actionsでpush、pull request、手動実行時にPython 3.10と3.14で
-自動実行されます。
+GitHub Actionsではpush、pull request、手動実行時に、上記に加えてカバレッジ付きテストと
+構文チェックをPython 3.10と3.14で実行します。
 
 依存の更新後は `uv lock` を実行し、`uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`
 でpip用ファイルを再生成してください。リポジトリの編集ルールは [`AGENTS.md`](AGENTS.md) を参照してください。
@@ -128,10 +125,13 @@ uv run --locked coverage report
 
 ## テスト
 
-OllamaやDocker MCPを起動せずにテストを実行できます。
+OllamaやDocker MCPを起動せずに、ロック済みの依存環境でテストとカバレッジを確認できます。
+カバレッジの全体値が70%未満の場合、レポートコマンドは失敗します。
 
 ```bash
-uv run --locked python -m unittest discover -v
+uv run --locked python -W error::ResourceWarning -m coverage run \
+  -m unittest discover -v
+uv run --locked coverage report
 ```
 
 HTTP連携のテストでは `tests/fake_ollama_server.py` の軽量Ollama APIシミュレーターを

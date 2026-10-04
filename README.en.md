@@ -109,18 +109,15 @@ Direct dependencies are listed in [`pyproject.toml`](pyproject.toml), and
 
 ## Development checks
 
-Run static checks and tests in the locked development environment:
+Run static checks in the locked development environment:
 
 ```bash
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked python -W error::ResourceWarning -m coverage run \
-  -m unittest discover -v
-uv run --locked coverage report
 ```
 
-GitHub Actions runs the same checks on pushes, pull requests, and manual runs
-with Python 3.10 and 3.14.
+On pushes, pull requests, and manual runs, GitHub Actions also runs tests with
+coverage and compiles the Python files on Python 3.10 and 3.14.
 
 After updating dependencies, run `uv lock`, then regenerate the pip file with
 `uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`.
@@ -135,10 +132,14 @@ This project is dual-licensed; users may choose either **MIT** or
 
 ## Tests
 
-Run the tests without starting Ollama or Docker MCP:
+Run tests and measure coverage in the locked development environment without
+starting Ollama or Docker MCP. The report command fails if total coverage is
+below 70%.
 
 ```bash
-uv run --locked python -m unittest discover -v
+uv run --locked python -W error::ResourceWarning -m coverage run \
+  -m unittest discover -v
+uv run --locked coverage report
 ```
 
 HTTP integration tests start the lightweight Ollama API simulator in
