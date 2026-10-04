@@ -26,6 +26,15 @@ from ollama import Client
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
+from agent_prompts import (
+    answer_prompt,
+    draft_prompt,
+    language_detection_prompt,
+    research_prompt,
+    route_prompt,
+    summary_prompt,
+    verification_prompt,
+)
 
 DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
@@ -138,14 +147,7 @@ async def detect_answer_language(
     try:
         response = await llm.ainvoke(
             [
-                SystemMessage(
-                    content=(
-                        "Determine the response language for the user's message. "
-                        "Reply with exactly one word: Japanese or English. "
-                        "Only return 'Japanese' if the message is clearly in Japanese; "
-                        "otherwise return 'English'."
-                    )
-                ),
+                SystemMessage(content=language_detection_prompt()),
                 HumanMessage(content=text),
             ]
         )
@@ -756,15 +758,12 @@ async def build_graph(
             f"{getattr(message, 'type', 'message')}: {message_text(message)}"
             for message in old_messages
         )
-        prompt = (
-            "Create a concise, factual conversation summary for the main agent. "
-            "Preserve user requirements, decisions, relevant tool results, "
-            "errors, and unresolved tasks. Do not add new facts.\n\n"
-            f"Previous summary:\n{state.get('summary') or '(none)'}\n\n"
-            f"Research notes:\n{state.get('research_notes') or '(none)'}\n\n"
-            f"Draft answer:\n{state.get('draft_notes') or '(none)'}\n\n"
-            f"Verification notes:\n{state.get('verification_notes') or '(none)'}\n\n"
-            f"Messages to compact:\n{transcript}"
+        prompt = summary_prompt(
+            state.get("summary", ""),
+            research_notes=state.get("research_notes", ""),
+            draft_notes=state.get("draft_notes", ""),
+            verification_notes=state.get("verification_notes", ""),
+            transcript=transcript,
         )
         summary_message = await llm_for_state(state, reasoning=True).ainvoke(
             [HumanMessage(content=prompt)]
@@ -798,27 +797,15 @@ async def build_graph(
             )
         return [*context, *state["messages"]]
 
-    def session_time_instruction(state: AgentState) -> str:
-        started_at = state.get("conversation_started_at", "unknown")
-        return f"Chat start date and time: {started_at}.\n"
-
     async def research(state: AgentState) -> dict[str, Any]:
         refine_count = state.get("refine_count", 0)
         log_line(state, "research", f"invoked (refine_count={refine_count})")
-        instruction = (
-            session_time_instruction(state)
-            + "You are the research phase of the main agent. Investigate "
-            "the user's request and use available tools when useful. "
-            "Return factual findings and unresolved points."
+        instruction = research_prompt(
+            started_at=state.get("conversation_started_at", "unknown"),
+            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            max_refine_loops=max_refine_loops,
+            verification_notes=state.get("verification_notes", ""),
         )
-        if refine_count and state.get("verification_status") != "OK":
-            instruction += (
-                "\n\nThis is a refinement pass (attempt "
-                f"{refine_count + 1}/{max_refine_loops + 1}). The verification "
-                "phase found problems with the previous research. Address the "
-                "following issues specifically before returning updated "
-                f"findings:\n{state.get('verification_notes', '')}"
-            )
         response = await llm_for_state(
             state, reasoning=True, bind_tools=True
         ).ainvoke(
@@ -840,18 +827,9 @@ async def build_graph(
             [
                 SystemMessage(
                     content=(
-                        session_time_instruction(state)
-                        + "Classify the user's request. Reply with exactly one word:\n"
-                        "RESEARCH if it needs external facts, current information, "
-                        "MCP tools, or verification against real-world data.\n"
-                        "COMPLICATED if it does NOT need external research or tools, "
-                        "but is a non-trivial reasoning, math, logic, coding, or "
-                        "writing task where a careful draft should be checked and "
-                        "refined before answering (e.g. multi-step problems, proofs, "
-                        "code that must be correct, precise or high-stakes writing).\n"
-                        "DIRECT for casual conversation, simple translation, simple "
-                        "rewriting, or other trivial tasks that need no verification.\n"
-                        "For anything else or if uncertain, reply MODERATED."
+                        route_prompt(
+                            state.get("conversation_started_at", "unknown")
+                        )
                     )
                 ),
                 *context_messages(state),
@@ -896,22 +874,13 @@ async def build_graph(
         no external investigation, ahead of the verify-refine loop."""
         refine_count = state.get("refine_count", 0)
         log_line(state, "draft", f"invoked (refine_count={refine_count})")
-        instruction = (
-            session_time_instruction(state)
-            + "You are the drafting phase of the main agent. This task is "
-            "complicated but does NOT require external research or tools. "
-            "Work through it carefully, step by step, and produce a "
-            "complete candidate answer or solution for the verification "
-            "phase to check."
+        instruction = draft_prompt(
+            started_at=state.get("conversation_started_at", "unknown"),
+            moderated=False,
+            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            max_refine_loops=max_refine_loops,
+            verification_notes=state.get("verification_notes", ""),
         )
-        if refine_count and state.get("verification_status") != "OK":
-            instruction += (
-                "\n\nThis is a refinement pass (attempt "
-                f"{refine_count + 1}/{max_refine_loops + 1}). The verification "
-                "phase found problems with the previous draft. Address the "
-                "following issues specifically before returning an updated "
-                f"draft:\n{state.get('verification_notes', '')}"
-            )
         response = await llm_for_state(state, reasoning=True).ainvoke(
             [SystemMessage(content=instruction), *context_messages(state)]
         )
@@ -923,21 +892,13 @@ async def build_graph(
         Used for moderate complexity tasks that fall between COMPLICATED and DIRECT."""
         refine_count = state.get("refine_count", 0)
         log_line(state, "moderated_draft", f"invoked (refine_count={refine_count})")
-        instruction = (
-            session_time_instruction(state)
-            + "You are the moderated drafting phase of the main agent. This task "
-            "requires some careful consideration but does NOT require external "
-            "research or tools. Produce a candidate answer for the verification "
-            "phase to check."
+        instruction = draft_prompt(
+            started_at=state.get("conversation_started_at", "unknown"),
+            moderated=True,
+            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            max_refine_loops=max_refine_loops,
+            verification_notes=state.get("verification_notes", ""),
         )
-        if refine_count and state.get("verification_status") != "OK":
-            instruction += (
-                "\n\nThis is a refinement pass (attempt "
-                f"{refine_count + 1}/{max_refine_loops + 1}). The verification "
-                "phase found problems with the previous draft. Address the "
-                "following issues specifically before returning an updated "
-                f"draft:\n{state.get('verification_notes', '')}"
-            )
         response = await llm_for_state(state, reasoning=False).ainvoke(
             [SystemMessage(content=instruction), *context_messages(state)]
         )
@@ -982,19 +943,10 @@ async def build_graph(
         ).ainvoke(
             [
                 SystemMessage(
-                    content=(
-                        session_time_instruction(state)
-                        + f"You are the verification phase. Check the {material_label} "
-                        "below for contradictions, missing information, unsupported "
-                        "claims, dates, times, units, logical errors, and any "
-                        "requirements from the user's request that were not met. "
-                        "Return concise verification notes and corrections.\n\n"
-                        f"{material_label.capitalize()}:\n{material}\n\n"
-                        "End your reply with exactly one final line, with no "
-                        "other text on it: 'STATUS: OK' if this is sound and "
-                        "sufficient to answer the user, or 'STATUS: "
-                        "NEEDS_REVISION' if it must be corrected or completed "
-                        "before answering."
+                    content=verification_prompt(
+                        started_at=state.get("conversation_started_at", "unknown"),
+                        material_label=material_label,
+                        material=material,
                     )
                 ),
                 *context_messages(state),
@@ -1033,30 +985,14 @@ async def build_graph(
         answer_language = state.get("answer_language", "English")
         answer_started_at = time.perf_counter()
         log_line(state, "answer", f"invoked (language={answer_language})")
-        notes_section = ""
-        if state.get("research_notes"):
-            notes_section += f"Research notes:\n{state['research_notes']}\n\n"
-        if state.get("draft_notes"):
-            notes_section += f"Draft answer:\n{state['draft_notes']}\n\n"
-        if state.get("verification_notes"):
-            notes_section += f"Verification notes:\n{state['verification_notes']}\n\n"
-        instruction = (
-            session_time_instruction(state)
-            + "You are the main agent. "
-            + (
-                "Answer the user's request using the notes below."
-                if notes_section
-                else "Answer the user's request."
-            )
-            + " Do not mention internal phases or hidden reasoning. Answer "
-            f"entirely in {answer_language}.\n\n{notes_section}"
+        instruction = answer_prompt(
+            answer_language=answer_language,
+            started_at=state.get("conversation_started_at", "unknown"),
+            research_notes=state.get("research_notes", ""),
+            draft_notes=state.get("draft_notes", ""),
+            verification_notes=state.get("verification_notes", ""),
+            verification_status=state.get("verification_status", "OK"),
         )
-        if state.get("verification_status", "OK") != "OK":
-            instruction += (
-                "The verification phase did not confirm the material as sound. "
-                "Be transparent about any unresolved or unverified points in "
-                "your answer. Do not present them as verified facts.\n"
-            )
         response = await llm_for_state(
             state, reasoning=True, bind_tools=True
         ).ainvoke(

@@ -23,6 +23,15 @@ from typing import Any, AsyncIterator
 from agent_framework import Agent, Content, MCPStdioTool, Message
 from agent_framework.ollama import OllamaChatClient
 from ollama import Client
+from agent_prompts import (
+    answer_prompt,
+    draft_prompt,
+    language_detection_prompt,
+    research_prompt,
+    route_prompt,
+    summary_prompt,
+    verification_prompt,
+)
 
 DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
@@ -291,11 +300,7 @@ async def detect_answer_language(
     try:
         response = await run_agent(
             model=model,
-            instructions=(
-                "Determine the response language for the user's message. Reply with exactly "
-                "one word: Japanese or English. Only return Japanese if the message is "
-                "clearly in Japanese; otherwise return English."
-            ),
+            instructions=language_detection_prompt(),
             messages=[Message("user", [text])],
             options={**options, "think": False},
             use_tools=False,
@@ -350,13 +355,7 @@ async def compact_context(
 
     log_line(request_id, "compact", f"compacting (size={size}/{context_limit}, messages={len(messages)})")
     old_messages = messages[:-MESSAGES_TO_KEEP]
-    prompt = (
-        "Create a concise, factual conversation summary for the main agent. Preserve user "
-        "requirements, decisions, relevant tool results, errors, and unresolved tasks. "
-        "Do not add new facts. Summarize the supplied conversation messages, including "
-        "information conveyed by attached images.\n\n"
-        f"Previous summary:\n{summary or '(none)'}"
-    )
+    prompt = summary_prompt(summary)
     response = await run_agent(
         model=model,
         instructions="You summarize conversation context accurately and concisely.",
@@ -368,10 +367,6 @@ async def compact_context(
     messages = messages[-MESSAGES_TO_KEEP:]
     log_line(request_id, "compact", f"done (removed={len(old_messages)}, summary_len={len(summary)})")
     return messages, summary
-
-
-def session_time_instruction(started_at: str) -> str:
-    return f"Chat start date and time: {started_at}.\n"
 
 
 async def verify_material(
@@ -386,16 +381,10 @@ async def verify_material(
     options: dict[str, Any],
     reasoning: bool,
 ) -> tuple[str, str]:
-    prompt = (
-        session_time_instruction(started_at)
-        + f"You are the verification phase. Check the {material_label} below for contradictions, "
-        "missing information, unsupported claims, dates, times, units, logical errors, and any "
-        "requirements from the user's request that were not met. Return concise verification "
-        "notes and corrections.\n\n"
-        f"{material_label.capitalize()}:\n{material}\n\n"
-        "End your reply with exactly one final line, with no other text on it: 'STATUS: OK' if "
-        "this is sound and sufficient to answer the user, or 'STATUS: NEEDS_REVISION' if it "
-        "must be corrected or completed before answering."
+    prompt = verification_prompt(
+        started_at=started_at,
+        material_label=material_label,
+        material=material,
     )
     response = await run_agent(
         model=model,
@@ -428,26 +417,14 @@ def build_answer_instructions(
     verification_notes: str = "",
     verification_status: str = "OK",
 ) -> str:
-    notes_section = ""
-    if research_notes:
-        notes_section += f"Research notes:\n{research_notes}\n\n"
-    if draft_notes:
-        notes_section += f"Draft answer:\n{draft_notes}\n\n"
-    if verification_notes:
-        notes_section += f"Verification notes:\n{verification_notes}\n\n"
-    instructions = (
-        session_time_instruction(started_at)
-        + "You are the main agent. "
-        + ("Answer the user's request using the notes below." if notes_section else "Answer the user's request.")
-        + " Do not mention internal phases or hidden reasoning. Answer entirely in "
-        f"{answer_language}.\n\n{notes_section}"
+    return answer_prompt(
+        answer_language=answer_language,
+        started_at=started_at,
+        research_notes=research_notes,
+        draft_notes=draft_notes,
+        verification_notes=verification_notes,
+        verification_status=verification_status,
     )
-    if verification_status != "OK":
-        instructions += (
-            "The verification phase did not confirm the material as sound. Be transparent about "
-            "any unresolved or unverified points in your answer. Do not present them as verified facts.\n"
-        )
-    return instructions
 
 
 async def prepare_turn(
@@ -480,17 +457,7 @@ async def prepare_turn(
     log_line(request_id, "route", "invoked")
     route_response = await run_agent(
         model=model,
-        instructions=(
-            session_time_instruction(started_at)
-            + "Classify the user's request. Reply with exactly one word:\n"
-            "RESEARCH if it needs external facts, current information, MCP tools, or verification "
-            "against real-world data.\n"
-            "COMPLICATED if it does NOT need external research or tools, but is a non-trivial "
-            "reasoning, math, logic, coding, or writing task where a careful draft should be checked "
-            "and refined before answering.\n"
-            "DIRECT for casual conversation, simple translation, simple rewriting, or other trivial "
-            "tasks that need no verification.\nFor anything else or if uncertain, reply MODERATED."
-        ),
+        instructions=route_prompt(started_at),
         messages=context_messages(messages, summary),
         options={**options, "think": False},
         use_tools=False,
@@ -518,36 +485,20 @@ async def prepare_turn(
         for refine_count in range(max_refine_loops + 1):
             log_line(request_id, phase, f"invoked (refine_count={refine_count})")
             if is_research:
-                phase_instructions = (
-                    session_time_instruction(started_at)
-                    + "You are the research phase of the main agent. Investigate the user's request "
-                    "and use available tools when useful. Return factual findings and unresolved points."
+                phase_instructions = research_prompt(
+                    started_at=started_at,
+                    refine_count=refine_count if verification_status != "OK" else 0,
+                    max_refine_loops=max_refine_loops,
+                    verification_notes=verification_notes,
                 )
-                if refine_count and verification_status != "OK":
-                    phase_instructions += (
-                        f"\n\nThis is a refinement pass (attempt {refine_count + 1}/{max_refine_loops + 1}). "
-                        "Address the following verification issues before returning updated findings:\n"
-                        f"{verification_notes}"
-                    )
             else:
-                phase_instructions = (
-                    session_time_instruction(started_at)
-                    + (
-                        "You are the moderated drafting phase of the main agent. This task requires "
-                        "some careful consideration but does NOT require external research or tools. "
-                        "Produce a candidate answer for the verification phase to check."
-                        if is_moderated
-                        else "You are the drafting phase of the main agent. This task is complicated "
-                        "but does NOT require external research or tools. Work through it carefully "
-                        "and produce a complete candidate answer for verification."
-                    )
+                phase_instructions = draft_prompt(
+                    started_at=started_at,
+                    moderated=is_moderated,
+                    refine_count=refine_count if verification_status != "OK" else 0,
+                    max_refine_loops=max_refine_loops,
+                    verification_notes=verification_notes,
                 )
-                if refine_count and verification_status != "OK":
-                    phase_instructions += (
-                        f"\n\nThis is a refinement pass (attempt {refine_count + 1}/{max_refine_loops + 1}). "
-                        "Address the following verification issues before returning an updated draft:\n"
-                        f"{verification_notes}"
-                    )
             phase_response = await run_agent(
                 model=model,
                 instructions=phase_instructions,
