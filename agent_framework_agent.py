@@ -34,6 +34,7 @@ from agent_prompts import (
 )
 
 DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
 DEFAULT_CONTEXT_LIMIT = 12000
 MESSAGES_TO_KEEP = 6
@@ -259,7 +260,7 @@ async def run_agent(
     use_tools: bool,
     require_tools: bool = False,
 ) -> Any:
-    client = OllamaChatClient(host="http://localhost:11434", model=model)
+    client = OllamaChatClient(host=OLLAMA_HOST, model=model)
     tools = [mcp_tool()] if use_tools else None
     agent = Agent(
         client=client,
@@ -283,7 +284,7 @@ async def stream_agent(
     options: dict[str, Any],
     use_tools: bool,
 ) -> AsyncIterator[str]:
-    client = OllamaChatClient(host="http://localhost:11434", model=model)
+    client = OllamaChatClient(host=OLLAMA_HOST, model=model)
     tools = [mcp_tool()] if use_tools else None
     agent = Agent(
         client=client,
@@ -607,7 +608,7 @@ def print_answer(answer: str, reasoning: str = "") -> None:
 
 def unload_ollama_model(model: str) -> None:
     try:
-        Client(host="http://localhost:11434").chat(
+        Client(host=OLLAMA_HOST).chat(
             model=model,
             messages=[],
             keep_alive=0,

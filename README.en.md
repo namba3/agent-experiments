@@ -32,6 +32,7 @@ In Windows PowerShell, activate the virtual environment with:
 
 Start Ollama and make sure the model you want to use is available. The agents
 connect to Ollama at `http://localhost:11434` by default.
+Set the `OLLAMA_HOST` environment variable to use a different endpoint.
 
 ## Usage
 
@@ -100,3 +101,7 @@ Run the unit tests without starting Ollama or Docker MCP:
 ```bash
 python -m unittest discover -v
 ```
+
+HTTP integration tests start the lightweight Ollama API simulator in
+`tests/fake_ollama_server.py` automatically. To run it manually, use
+`python tests/fake_ollama_server.py`; it listens on `127.0.0.1:11435` by default.

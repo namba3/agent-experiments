@@ -37,6 +37,7 @@ from agent_prompts import (
 )
 
 DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
 DOCKER_MCP_SILENT_COMMAND = "sh"
 DEFAULT_CONTEXT_LIMIT = 12000
@@ -117,6 +118,23 @@ def new_request_id() -> str:
     """Short id used to correlate all node logs for a single request/turn."""
     return uuid.uuid4().hex[:8]
 
+
+async def invoke_and_close_chat_model(llm: Any, messages: list[Any]) -> Any:
+    """Invoke a ChatOllama runnable and close its request-scoped async client."""
+    try:
+        return await llm.ainvoke(messages)
+    finally:
+        # ChatOllama does not expose a public close method; a tools binding wraps
+        # the model in `.bound`, so walk through that wrapper when needed.
+        current = llm
+        while current is not None:
+            client = getattr(current, "_async_client", None)
+            if client is not None:
+                await client.close()
+                break
+            current = getattr(current, "bound", None)
+
+
 async def detect_answer_language(
     message: str,
     model: str,
@@ -131,7 +149,7 @@ async def detect_answer_language(
         return "English"
 
     llm_kwargs: dict[str, Any] = {
-        "base_url": "http://localhost:11434",
+        "base_url": OLLAMA_HOST,
         "model": model,
         "reasoning": False,
         "temperature": temperature,
@@ -145,7 +163,8 @@ async def detect_answer_language(
 
     llm = ChatOllama(**llm_kwargs)
     try:
-        response = await llm.ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm,
             [
                 SystemMessage(content=language_detection_prompt()),
                 HumanMessage(content=text),
@@ -284,7 +303,7 @@ def extract_reasoning(message: AIMessage) -> str:
 def unload_ollama_model(model: str) -> None:
     """Unload the selected Ollama model from memory."""
     try:
-        Client(host="http://localhost:11434").chat(
+        Client(host=OLLAMA_HOST).chat(
             model=model,
             messages=[],
             keep_alive=0,
@@ -687,7 +706,7 @@ async def build_graph(
         )
 
     llm_kwargs: dict[str, Any] = {
-        "base_url": "http://localhost:11434",
+        "base_url": OLLAMA_HOST,
         "model": model,
         "temperature": temperature,
     }
@@ -769,8 +788,9 @@ async def build_graph(
             verification_notes=state.get("verification_notes", ""),
             transcript=transcript,
         )
-        summary_message = await llm_for_state(state, reasoning=True).ainvoke(
-            [HumanMessage(content=prompt)]
+        summary_message = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=True),
+            [HumanMessage(content=prompt)],
         )
         removed = [
             RemoveMessage(id=message.id)
@@ -810,9 +830,8 @@ async def build_graph(
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
-        response = await llm_for_state(
-            state, reasoning=True, bind_tools=True
-        ).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=True, bind_tools=True),
             [SystemMessage(content=instruction), *context_messages(state)]
         )
         tool_call_count = len(getattr(response, "tool_calls", None) or [])
@@ -827,7 +846,8 @@ async def build_graph(
         """Decide whether this request needs research, careful drafting with
         verification, a standard draft, or a simple answer."""
         log_line(state, "route", "invoked")
-        response = await llm_for_state(state, reasoning=False).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=False),
             [
                 SystemMessage(
                     content=(
@@ -885,7 +905,8 @@ async def build_graph(
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
-        response = await llm_for_state(state, reasoning=True).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=True),
             [SystemMessage(content=instruction), *context_messages(state)]
         )
         log_line(state, "draft", f"done (draft_len={len(message_text(response))})")
@@ -903,7 +924,8 @@ async def build_graph(
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
-        response = await llm_for_state(state, reasoning=False).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=False),
             [SystemMessage(content=instruction), *context_messages(state)]
         )
         log_line(state, "standard_draft", f"done (draft_len={len(message_text(response))})")
@@ -942,9 +964,8 @@ async def build_graph(
         material_label = "research findings" if is_research else "draft answer"
         material = state.get("research_notes" if is_research else "draft_notes", "")
         log_line(state, "verify", f"invoked (checking {material_label})")
-        response = await llm_for_state(
-            state, reasoning=not is_standard
-        ).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=not is_standard),
             [
                 SystemMessage(
                     content=verification_prompt(
@@ -997,9 +1018,8 @@ async def build_graph(
             verification_notes=state.get("verification_notes", ""),
             verification_status=state.get("verification_status", "OK"),
         )
-        response = await llm_for_state(
-            state, reasoning=True, bind_tools=True
-        ).ainvoke(
+        response = await invoke_and_close_chat_model(
+            llm_for_state(state, reasoning=True, bind_tools=True),
             [SystemMessage(content=instruction), *context_messages(state)]
         )
         if not message_text(response).strip():

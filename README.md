@@ -33,6 +33,7 @@ Windows PowerShell では、仮想環境の有効化に次を使います。
 
 Ollama を起動し、利用するモデルを事前に用意してください。エージェントは
 既定で `http://localhost:11434` の Ollama に接続します。
+`OLLAMA_HOST` 環境変数で接続先を変更できます。
 
 ## 使い方
 
@@ -98,3 +99,7 @@ OllamaやDocker MCPを起動せずに単体テストを実行できます。
 ```bash
 python -m unittest discover -v
 ```
+
+HTTP連携のテストでは `tests/fake_ollama_server.py` の軽量Ollama APIシミュレーターを
+自動起動します。手動で使う場合は `python tests/fake_ollama_server.py` で
+`127.0.0.1:11435` に起動します。
