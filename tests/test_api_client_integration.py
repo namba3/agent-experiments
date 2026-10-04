@@ -46,6 +46,52 @@ def completion_response(content: str = "hello") -> dict[str, Any]:
     }
 
 
+class ImageEncodingTests(unittest.TestCase):
+    def test_encode_supported_image_as_data_url(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "sample.png"
+            image_path.write_bytes(b"hello")
+
+            encoded = asyncio.run(agent_api_client.encode_image(image_path))
+
+        self.assertEqual(encoded, "data:image/png;base64,aGVsbG8=")
+
+    def test_encode_rejects_missing_and_unsupported_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            directory = Path(temp_dir)
+            with self.assertRaisesRegex(ValueError, "画像ファイルがありません"):
+                asyncio.run(agent_api_client.encode_image(directory / "missing.png"))
+
+            unsupported_path = directory / "notes.txt"
+            unsupported_path.write_text("not an image", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "未対応の画像形式です"):
+                asyncio.run(agent_api_client.encode_image(unsupported_path))
+
+    def test_encode_rejects_oversized_file_before_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "large.png"
+            image_path.write_bytes(b"12345")
+            with (
+                patch.object(agent_api_client, "MAX_IMAGE_BYTES", 4),
+                patch.object(Path, "read_bytes") as read_bytes,
+            ):
+                with self.assertRaisesRegex(ValueError, "20 MiB 以下"):
+                    asyncio.run(agent_api_client.encode_image(image_path))
+
+        read_bytes.assert_not_called()
+
+    def test_encode_rechecks_size_after_reading_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "growing.png"
+            image_path.write_bytes(b"x")
+            with (
+                patch.object(agent_api_client, "MAX_IMAGE_BYTES", 4),
+                patch.object(Path, "read_bytes", return_value=b"12345"),
+            ):
+                with self.assertRaisesRegex(ValueError, "20 MiB 以下"):
+                    asyncio.run(agent_api_client.encode_image(image_path))
+
+
 class ApiClientHttpIntegrationTests(unittest.TestCase):
     def run_async(self, coroutine: Any) -> Any:
         return asyncio.run(coroutine)
