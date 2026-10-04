@@ -3,13 +3,99 @@
 from __future__ import annotations
 
 import math
+import sys
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
+from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 import agent_api_client
 import agent_framework_agent
 import langgraph_agent
+
+
+class AgentCliArgumentTests(unittest.TestCase):
+    PARSERS = (
+        agent_framework_agent.parse_arguments,
+        langgraph_agent.parse_arguments,
+    )
+
+    def parse(self, parser, arguments: list[str]):
+        with (
+            patch.object(sys, "argv", ["agent", *arguments]),
+            redirect_stderr(StringIO()),
+        ):
+            return parser()
+
+    def test_defaults_match_between_agent_implementations(self) -> None:
+        parsed = [
+            self.parse(parser, ["--model", "test-model"]) for parser in self.PARSERS
+        ]
+
+        self.assertEqual(vars(parsed[0]), vars(parsed[1]))
+        self.assertTrue(parsed[0].without_docker_mcp)
+        self.assertTrue(parsed[0].disable_research)
+        self.assertFalse(parsed[0].disable_complicated)
+        self.assertFalse(parsed[0].disable_direct)
+        self.assertEqual(parsed[0].context_limit, 12000)
+        self.assertEqual(parsed[0].max_refine_loops, 2)
+
+    def test_common_cli_options_match_between_agent_implementations(self) -> None:
+        arguments = [
+            "--model",
+            "test-model",
+            "--message",
+            "hello",
+            "--context-limit",
+            "8000",
+            "--max-refine-loops",
+            "4",
+            "--temperature",
+            "0.25",
+            "--seed",
+            "17",
+            "--top-p",
+            "0.8",
+            "--num-predict",
+            "96",
+            "--with-docker-mcp",
+            "--enable-research",
+            "--disable-deep",
+            "--disable-simple",
+            "--serve",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "9001",
+        ]
+        parsed = [self.parse(parser, arguments) for parser in self.PARSERS]
+
+        self.assertEqual(vars(parsed[0]), vars(parsed[1]))
+        self.assertEqual(parsed[0].model, "test-model")
+        self.assertEqual(parsed[0].message, "hello")
+        self.assertEqual(parsed[0].context_limit, 8000)
+        self.assertEqual(parsed[0].max_refine_loops, 4)
+        self.assertEqual(parsed[0].temperature, 0.25)
+        self.assertEqual(parsed[0].seed, 17)
+        self.assertEqual(parsed[0].top_p, 0.8)
+        self.assertEqual(parsed[0].num_predict, 96)
+        self.assertFalse(parsed[0].without_docker_mcp)
+        self.assertFalse(parsed[0].disable_research)
+        self.assertTrue(parsed[0].disable_complicated)
+        self.assertTrue(parsed[0].disable_direct)
+        self.assertTrue(parsed[0].serve)
+        self.assertEqual((parsed[0].host, parsed[0].port), ("0.0.0.0", 9001))
+
+    def test_research_requires_docker_mcp_in_both_cli_parsers(self) -> None:
+        for parser in self.PARSERS:
+            with (
+                self.subTest(parser=parser.__module__),
+                self.assertRaises(SystemExit) as error,
+            ):
+                self.parse(parser, ["--model", "test-model", "--enable-research"])
+            self.assertEqual(error.exception.code, 2)
 
 
 class MessageConversionTests(unittest.TestCase):
