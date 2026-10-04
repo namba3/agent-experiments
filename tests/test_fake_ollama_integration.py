@@ -65,7 +65,13 @@ class AgentWorkflowIntegrationTests(unittest.TestCase):
         return "unexpected prompt"
 
     @staticmethod
-    def retry_responder(route_label: str):
+    def retry_responder(
+        route_label: str,
+        verification_responses: tuple[str, ...] = (
+            "Revise the unsupported date.\nSTATUS: NEEDS_REVISION",
+            "The revised draft is sound.\nSTATUS: OK",
+        ),
+    ):
         draft_instruction = (
             "You are the standard drafting phase"
             if route_label == "STANDARD"
@@ -86,10 +92,13 @@ class AgentWorkflowIntegrationTests(unittest.TestCase):
                 return f"candidate draft {counts['draft']}"
             if "You are the verification phase. Check" in serialized:
                 counts["verify"] += 1
-                if counts["verify"] == 1:
-                    return "Revise the unsupported date.\nSTATUS: NEEDS_REVISION"
-                return "The revised draft is sound.\nSTATUS: OK"
+                response_index = min(
+                    counts["verify"] - 1, len(verification_responses) - 1
+                )
+                return verification_responses[response_index]
             if "You are the main agent." in serialized:
+                if "did not confirm the material as sound" in serialized:
+                    return "final response with caveats"
                 return "verified final response"
             return "unexpected prompt"
 
@@ -126,6 +135,38 @@ class AgentWorkflowIntegrationTests(unittest.TestCase):
             ["language", "route", "draft", "verify", "draft", "verify", "answer"],
         )
         self.assertIn("Revise the unsupported date.", json.dumps(requests[4]))
+
+    def assert_retry_budget_exhausted(
+        self,
+        requests: list[dict[str, object]],
+        counts: dict[str, int],
+        route_label: str,
+    ) -> None:
+        draft_instruction = (
+            "You are the standard drafting phase"
+            if route_label == "STANDARD"
+            else "You are the deep-reasoning drafting phase"
+        )
+        self.assertEqual(counts, {"draft": 2, "verify": 2})
+        sequence = []
+        for request_payload in requests:
+            request = json.dumps(request_payload)
+            if "Determine the response language" in request:
+                sequence.append("language")
+            elif "Classify the user's request" in request:
+                sequence.append("route")
+            elif draft_instruction in request:
+                sequence.append("draft")
+            elif "You are the verification phase. Check" in request:
+                sequence.append("verify")
+            elif "You are the main agent." in request:
+                sequence.append("answer")
+
+        self.assertEqual(
+            sequence,
+            ["language", "route", "draft", "verify", "draft", "verify", "answer"],
+        )
+        self.assertIn("did not confirm the material as sound", json.dumps(requests[-1]))
 
     def test_langgraph_simple_workflow_runs_against_fake_ollama(self) -> None:
         with FakeOllamaServer(responder=self.responder) as server:
@@ -273,6 +314,62 @@ class AgentWorkflowIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result.answer, "verified final response")
         self.assert_retry(requests, counts, "DEEP")
+
+    def test_langgraph_stops_refining_when_retry_budget_is_exhausted(self) -> None:
+        needs_revision = "Still unsupported.\nSTATUS: NEEDS_REVISION"
+        responder, requests, counts = self.retry_responder(
+            "DEEP", verification_responses=(needs_revision,)
+        )
+        output = io.StringIO()
+        with FakeOllamaServer(responder=responder) as server:
+            with patch.object(langgraph_agent, "OLLAMA_HOST", server.base_url):
+                with redirect_stdout(output):
+                    asyncio.run(
+                        langgraph_agent.main(
+                            model="fake-model",
+                            without_docker_mcp=True,
+                            message="reason through this carefully",
+                            max_refine_loops=1,
+                        )
+                    )
+
+        self.assertIn("final response with caveats", output.getvalue())
+        self.assert_retry_budget_exhausted(requests, counts, "DEEP")
+
+    def test_agent_framework_stops_refining_when_retry_budget_is_exhausted(
+        self,
+    ) -> None:
+        needs_revision = "Still unsupported.\nSTATUS: NEEDS_REVISION"
+        responder, requests, counts = self.retry_responder(
+            "DEEP", verification_responses=(needs_revision,)
+        )
+        args = SimpleNamespace(
+            temperature=0.7,
+            seed=None,
+            top_p=None,
+            num_predict=None,
+            without_docker_mcp=True,
+            context_limit=12000,
+            max_refine_loops=1,
+            disable_research=True,
+            disable_complicated=False,
+            disable_direct=False,
+        )
+        messages = [agent_framework_agent.Message("user", ["reason carefully"])]
+
+        with FakeOllamaServer(responder=responder) as server:
+            with patch.object(agent_framework_agent, "OLLAMA_HOST", server.base_url):
+                result, _summary = asyncio.run(
+                    agent_framework_agent.run_cli_turn(
+                        model="fake-model",
+                        messages=messages,
+                        summary="",
+                        args=args,
+                    )
+                )
+
+        self.assertEqual(result.answer, "final response with caveats")
+        self.assert_retry_budget_exhausted(requests, counts, "DEEP")
 
     def test_agent_framework_client_uses_configured_fake_ollama_server(self) -> None:
         with FakeOllamaServer(response="Japanese") as server:
