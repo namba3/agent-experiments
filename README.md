@@ -77,6 +77,8 @@ python langgraph_api_client.py --message "Summarize this image." --image path/to
 - Docker MCP は両エージェントとも既定で無効です。`--with-docker-mcp` で有効にできます。
 - `--enable-research` でRESEARCH経路を使うには、利用可能なツールが必要なため
   `--with-docker-mcp` も指定してください。
+- ルート名は `SIMPLE`（直接回答）、`STANDARD`（下書きを検証）、`DEEP`
+  （推論を重ねて検証）、`RESEARCH`（外部情報を調査して検証）です。
 - Agent Framework版とLangGraph版は同じ `--context-limit`、`--max-refine-loops`、
   `--temperature`、`--seed`、`--top-p`、`--num-predict`、APIの `--host` / `--port` を受け付けます。
 - `langgraph_api_client.py` は既定で `http://127.0.0.1:8000/v1` に接続します。

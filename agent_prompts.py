@@ -47,9 +47,9 @@ def route_prompt(started_at: str) -> str:
         session_time_instruction(started_at)
         + "Classify the user's request. Reply with exactly one word:\n"
         "RESEARCH if it needs external facts, current information, MCP tools, or verification against real-world data.\n"
-        "COMPLICATED if it does NOT need external research or tools, but is a non-trivial reasoning, math, logic, coding, or writing task where a careful draft should be checked and refined before answering (e.g. multi-step problems, proofs, code that must be correct, precise or high-stakes writing).\n"
-        "DIRECT for casual conversation, simple translation, simple rewriting, or other trivial tasks that need no verification.\n"
-        "For anything else or if uncertain, reply MODERATED."
+        "DEEP if it does NOT need external research or tools, but is a non-trivial reasoning, math, logic, coding, or writing task where a careful draft should be checked and refined before answering (e.g. multi-step problems, proofs, code that must be correct, precise or high-stakes writing).\n"
+        "SIMPLE for casual conversation, simple translation, simple rewriting, or other trivial tasks that need no verification.\n"
+        "For anything else or if uncertain, reply STANDARD."
     )
 
 
@@ -93,21 +93,21 @@ def research_prompt(
 def draft_prompt(
     *,
     started_at: str,
-    moderated: bool,
+    standard: bool,
     refine_count: int = 0,
     max_refine_loops: int = 2,
     verification_notes: str = "",
 ) -> str:
-    if moderated:
+    if standard:
         base = (
-            "You are the moderated drafting phase of the main agent. This task requires "
+            "You are the standard drafting phase of the main agent. This task requires "
             "some careful consideration but does NOT require external research or tools. "
             "Produce a candidate answer for the verification phase to check."
         )
         material_name = "draft"
     else:
         base = (
-            "You are the drafting phase of the main agent. This task is complicated but "
+            "You are the deep-reasoning drafting phase of the main agent. This task "
             "does NOT require external research or tools. Work through it carefully, step "
             "by step, and produce a complete candidate answer or solution for the "
             "verification phase to check."

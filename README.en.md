@@ -78,6 +78,9 @@ Run any script with `--help` to see all available options.
   `--with-docker-mcp`.
 - The RESEARCH route requires available tools, so pass both
   `--enable-research` and `--with-docker-mcp`.
+- Route labels are `SIMPLE` (answer directly), `STANDARD` (draft and verify),
+  `DEEP` (reason carefully, then verify), and `RESEARCH` (gather and verify
+  external information).
 - Both agent scripts accept the same `--context-limit`, `--max-refine-loops`,
   `--temperature`, `--seed`, `--top-p`, `--num-predict`, and API `--host` / `--port` options.
 - `langgraph_api_client.py` connects to `http://127.0.0.1:8000/v1` by default.

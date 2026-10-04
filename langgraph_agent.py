@@ -244,18 +244,22 @@ def parse_arguments() -> argparse.Namespace:
         "--disable-research",
         dest="disable_research",
         action="store_true",
-        help="Disable the RESEARCH route (default; use MODERATED if detected)",
+        help="Disable the RESEARCH route (default; use STANDARD if detected)",
     )
     parser.set_defaults(disable_research=True)
     parser.add_argument(
+        "--disable-deep",
         "--disable-complicated",
+        dest="disable_complicated",
         action="store_true",
-        help="Disable COMPLICATED route (force to MODERATED if detected)",
+        help="Disable DEEP route (force to STANDARD if detected)",
     )
     parser.add_argument(
+        "--disable-simple",
         "--disable-direct",
+        dest="disable_direct",
         action="store_true",
-        help="Disable DIRECT route (force to MODERATED if detected)",
+        help="Disable SIMPLE route (force to STANDARD if detected)",
     )
     args = parser.parse_args()
     if not args.disable_research and args.without_docker_mcp:
@@ -821,7 +825,7 @@ async def build_graph(
 
     async def route_task(state: AgentState) -> dict[str, str]:
         """Decide whether this request needs research, careful drafting with
-        verification, a moderated draft, or a direct answer."""
+        verification, a standard draft, or a simple answer."""
         log_line(state, "route", "invoked")
         response = await llm_for_state(state, reasoning=False).ainvoke(
             [
@@ -838,12 +842,12 @@ async def build_graph(
         route = message_text(response).strip().upper()
         if "RESEARCH" in route and not disable_research:
             task_route = "RESEARCH"
-        elif "COMPLICATED" in route and not disable_complicated:
-            task_route = "COMPLICATED"
-        elif "DIRECT" in route and not disable_direct:
-            task_route = "DIRECT"
+        elif "DEEP" in route and not disable_complicated:
+            task_route = "DEEP"
+        elif "SIMPLE" in route and not disable_direct:
+            task_route = "SIMPLE"
         else:
-            task_route = "MODERATED"
+            task_route = "STANDARD"
         log_line(state, "route", f"task_route={task_route!r}")
         return {"task_route": task_route}
 
@@ -870,13 +874,13 @@ async def build_graph(
         return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "end"
 
     async def draft(state: AgentState) -> dict[str, Any]:
-        """Produce a careful candidate answer for COMPLICATED tasks that need
+        """Produce a careful candidate answer for DEEP tasks that need
         no external investigation, ahead of the verify-refine loop."""
         refine_count = state.get("refine_count", 0)
         log_line(state, "draft", f"invoked (refine_count={refine_count})")
         instruction = draft_prompt(
             started_at=state.get("conversation_started_at", "unknown"),
-            moderated=False,
+            standard=False,
             refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
@@ -887,14 +891,14 @@ async def build_graph(
         log_line(state, "draft", f"done (draft_len={len(message_text(response))})")
         return {"draft_notes": message_text(response)}
 
-    async def moderated_draft(state: AgentState) -> dict[str, Any]:
-        """Produce a moderate candidate answer with verify-refine but no reasoning.
-        Used for moderate complexity tasks that fall between COMPLICATED and DIRECT."""
+    async def standard_draft(state: AgentState) -> dict[str, Any]:
+        """Produce a standard candidate answer with verification and no reasoning.
+        Used for tasks between DEEP and SIMPLE in complexity."""
         refine_count = state.get("refine_count", 0)
-        log_line(state, "moderated_draft", f"invoked (refine_count={refine_count})")
+        log_line(state, "standard_draft", f"invoked (refine_count={refine_count})")
         instruction = draft_prompt(
             started_at=state.get("conversation_started_at", "unknown"),
-            moderated=True,
+            standard=True,
             refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
@@ -902,17 +906,17 @@ async def build_graph(
         response = await llm_for_state(state, reasoning=False).ainvoke(
             [SystemMessage(content=instruction), *context_messages(state)]
         )
-        log_line(state, "moderated_draft", f"done (draft_len={len(message_text(response))})")
+        log_line(state, "standard_draft", f"done (draft_len={len(message_text(response))})")
         return {"draft_notes": message_text(response)}
 
     def route_after_classification(state: AgentState) -> str:
         task_route = state.get("task_route")
         if task_route == "RESEARCH":
             return "research"
-        if task_route == "COMPLICATED":
+        if task_route == "DEEP":
             return "draft"
-        if task_route == "MODERATED":
-            return "moderated_draft"
+        if task_route == "STANDARD":
+            return "standard_draft"
         return "answer"
 
     def route_after_verify(state: AgentState) -> str:
@@ -925,8 +929,8 @@ async def build_graph(
             task_route = state.get("task_route")
             if task_route == "RESEARCH":
                 return "refine_research"
-            elif task_route == "MODERATED":
-                return "refine_moderated"
+            elif task_route == "STANDARD":
+                return "refine_standard"
             else:
                 return "refine_draft"
         return "answer"
@@ -934,12 +938,12 @@ async def build_graph(
     async def verify(state: AgentState) -> dict[str, Any]:
         refine_count = state.get("refine_count", 0)
         is_research = state.get("task_route") == "RESEARCH"
-        is_moderated = state.get("task_route") == "MODERATED"
+        is_standard = state.get("task_route") == "STANDARD"
         material_label = "research findings" if is_research else "draft answer"
         material = state.get("research_notes" if is_research else "draft_notes", "")
         log_line(state, "verify", f"invoked (checking {material_label})")
         response = await llm_for_state(
-            state, reasoning=not is_moderated
+            state, reasoning=not is_standard
         ).ainvoke(
             [
                 SystemMessage(
@@ -1022,7 +1026,7 @@ async def build_graph(
     builder.add_node("route", route_task)
     builder.add_node("research", research)
     builder.add_node("draft", draft)
-    builder.add_node("moderated_draft", moderated_draft)
+    builder.add_node("standard_draft", standard_draft)
     builder.add_node("verify", verify)
     builder.add_node("answer", answer)
     builder.add_edge(START, "compact")
@@ -1030,12 +1034,12 @@ async def build_graph(
     builder.add_conditional_edges(
         "route",
         route_after_classification,
-        {"research": "research", "draft": "draft", "moderated_draft": "moderated_draft", "answer": "answer"},
+        {"research": "research", "draft": "draft", "standard_draft": "standard_draft", "answer": "answer"},
     )
-    # draft and moderated_draft never use tools (no external investigation),
+    # draft and standard_draft never use tools (no external investigation),
     # so they always go straight to verification regardless of tool availability.
     builder.add_edge("draft", "verify")
-    builder.add_edge("moderated_draft", "verify")
+    builder.add_edge("standard_draft", "verify")
     if tools:
         builder.add_node("research_tools", call_tools)
         builder.add_node("answer_tools", call_tools)
@@ -1055,7 +1059,7 @@ async def build_graph(
     builder.add_conditional_edges(
         "verify",
         route_after_verify,
-        {"refine_research": "research", "refine_draft": "draft", "refine_moderated": "moderated_draft", "answer": "answer"},
+        {"refine_research": "research", "refine_draft": "draft", "refine_standard": "standard_draft", "answer": "answer"},
     )
     return builder.compile()
 

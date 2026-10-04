@@ -157,8 +157,20 @@ def parse_arguments() -> argparse.Namespace:
         help="RESEARCH 経路を無効にする（デフォルト）",
     )
     parser.set_defaults(disable_research=True)
-    parser.add_argument("--disable-complicated", action="store_true")
-    parser.add_argument("--disable-direct", action="store_true")
+    parser.add_argument(
+        "--disable-deep",
+        "--disable-complicated",
+        dest="disable_complicated",
+        action="store_true",
+        help="Disable the DEEP route (use STANDARD instead)",
+    )
+    parser.add_argument(
+        "--disable-simple",
+        "--disable-direct",
+        dest="disable_direct",
+        action="store_true",
+        help="Disable the SIMPLE route (use STANDARD instead)",
+    )
     args = parser.parse_args()
     if not args.disable_research and args.without_docker_mcp:
         parser.error("--enable-research には --with-docker-mcp も必要です")
@@ -465,23 +477,23 @@ async def prepare_turn(
     route = response_text(route_response).strip().upper()
     if "RESEARCH" in route and not disable_research and with_docker_mcp:
         task_route = "RESEARCH"
-    elif "COMPLICATED" in route and not disable_complicated:
-        task_route = "COMPLICATED"
-    elif "DIRECT" in route and not disable_direct:
-        task_route = "DIRECT"
+    elif "DEEP" in route and not disable_complicated:
+        task_route = "DEEP"
+    elif "SIMPLE" in route and not disable_direct:
+        task_route = "SIMPLE"
     else:
-        task_route = "MODERATED"
+        task_route = "STANDARD"
     log_line(request_id, "route", f"task_route={task_route!r}")
 
     research_notes = ""
     draft_notes = ""
     verification_notes = ""
     verification_status = "OK"
-    if task_route in {"RESEARCH", "COMPLICATED", "MODERATED"}:
+    if task_route in {"RESEARCH", "DEEP", "STANDARD"}:
         is_research = task_route == "RESEARCH"
-        is_moderated = task_route == "MODERATED"
+        is_standard = task_route == "STANDARD"
         material_label = "research findings" if is_research else "draft answer"
-        phase = "research" if is_research else "moderated_draft" if is_moderated else "draft"
+        phase = "research" if is_research else "standard_draft" if is_standard else "draft"
         for refine_count in range(max_refine_loops + 1):
             log_line(request_id, phase, f"invoked (refine_count={refine_count})")
             if is_research:
@@ -494,7 +506,7 @@ async def prepare_turn(
             else:
                 phase_instructions = draft_prompt(
                     started_at=started_at,
-                    moderated=is_moderated,
+                    standard=is_standard,
                     refine_count=refine_count if verification_status != "OK" else 0,
                     max_refine_loops=max_refine_loops,
                     verification_notes=verification_notes,
@@ -503,7 +515,7 @@ async def prepare_turn(
                 model=model,
                 instructions=phase_instructions,
                 messages=context_messages(messages, summary),
-                options={**options, "think": not is_moderated},
+                options={**options, "think": not is_standard},
                 use_tools=is_research and with_docker_mcp,
                 require_tools=is_research,
             )
@@ -523,7 +535,7 @@ async def prepare_turn(
                 summary="",
                 started_at=started_at,
                 options=options,
-                reasoning=not is_moderated,
+                reasoning=not is_standard,
             )
             if verification_status == "OK":
                 break
