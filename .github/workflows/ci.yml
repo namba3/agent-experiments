@@ -40,8 +40,13 @@ jobs:
       - name: Check formatting
         run: uv run --locked ruff format --check .
 
-      - name: Run tests
-        run: uv run --locked python -W error::ResourceWarning -m unittest discover -v
+      - name: Run tests with coverage
+        run: >-
+          uv run --locked python -W error::ResourceWarning
+          -m coverage run -m unittest discover -v
+
+      - name: Enforce coverage threshold
+        run: uv run --locked coverage report
 
       - name: Compile Python files
         run: >-

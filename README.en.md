@@ -25,9 +25,9 @@ uv sync --locked
 source .venv/bin/activate
 ```
 
-`uv sync` creates `.venv` and installs runtime dependencies plus Ruff. To use pip
-instead, create and activate a virtual environment, then install the locked
-`requirements.txt`:
+`uv sync` creates `.venv` and installs runtime dependencies, Ruff, and
+Coverage.py. To use pip instead, create and activate a virtual environment, then
+install the locked `requirements.txt`:
 
 ```bash
 python -m venv .venv
@@ -114,7 +114,9 @@ Run static checks and tests in the locked development environment:
 ```bash
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked python -W error::ResourceWarning -m unittest discover -v
+uv run --locked python -W error::ResourceWarning -m coverage run \
+  -m unittest discover -v
+uv run --locked coverage report
 ```
 
 GitHub Actions runs the same checks on pushes, pull requests, and manual runs

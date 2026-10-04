@@ -24,8 +24,8 @@ uv sync --locked
 source .venv/bin/activate
 ```
 
-`uv sync` は `.venv` を作成し、実行時依存とRuffをインストールします。uvを使わず
-pipでインストールする場合は、仮想環境を作成・有効化してからロック済みの
+`uv sync` は `.venv` を作成し、実行時依存、Ruff、Coverage.pyをインストールします。
+uvを使わずpipでインストールする場合は、仮想環境を作成・有効化してからロック済みの
 `requirements.txt` を使います。
 
 ```bash
@@ -108,7 +108,9 @@ python agent_framework_agent.py --model <ollama-model> --enable-research --with-
 ```bash
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked python -W error::ResourceWarning -m unittest discover -v
+uv run --locked python -W error::ResourceWarning -m coverage run \
+  -m unittest discover -v
+uv run --locked coverage report
 ```
 
 同じチェックはGitHub Actionsでpush、pull request、手動実行時にPython 3.10と3.14で

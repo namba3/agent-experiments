@@ -19,7 +19,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.15,<0.16"]
+dev = [
+    "coverage>=7.16,<8",
+    "ruff>=0.15,<0.16",
+]
 
 [tool.uv]
 package = false
@@ -30,3 +33,16 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "agent_api_client",
+    "agent_framework_agent",
+    "agent_prompts",
+    "langgraph_agent",
+]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
