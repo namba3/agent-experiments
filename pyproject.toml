@@ -1,3 +1,28 @@
+[project]
+name = "agent-experiments"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "agent-framework-core",
+    "agent-framework-ollama",
+    "fastapi",
+    "langchain-core",
+    "langchain-mcp-adapters",
+    "langchain-ollama",
+    "langgraph",
+    "mcp",
+    "ollama",
+    "openai",
+    "rich",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.15,<0.16"]
+
+[tool.uv]
+package = false
+
 [tool.ruff]
 line-length = 88
 target-version = "py310"

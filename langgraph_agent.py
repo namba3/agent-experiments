@@ -143,7 +143,12 @@ async def invoke_and_close_chat_model(llm: Any, messages: list[Any]) -> Any:
         while current is not None:
             client = getattr(current, "_async_client", None)
             if client is not None:
-                await client.close()
+                close = getattr(client, "close", None)
+                if close is not None:
+                    await close()
+                else:
+                    # Older ollama clients expose their httpx client only.
+                    await client._client.aclose()
                 break
             current = getattr(current, "bound", None)
 

@@ -21,8 +21,12 @@ entry point.
   environment variables. Use portable command names or relative paths as
   defaults where practical.
 - Keep `.env` files and other local configuration out of version control.
-- List direct third-party Python imports in `requirements.txt`; do not list
-  Python standard-library modules.
+- Declare direct runtime dependencies and development tools in `pyproject.toml`.
+- Keep `uv.lock` committed and use `uv sync --locked` to reproduce the development
+  environment.
+- Generate `requirements.txt` from the lock with
+  `uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`;
+  do not edit the generated file by hand.
 
 ## Changes
 
