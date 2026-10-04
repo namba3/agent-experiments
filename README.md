@@ -114,6 +114,13 @@ uv run --locked python -W error::ResourceWarning -m unittest discover -v
 依存の更新後は `uv lock` を実行し、`uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`
 でpip用ファイルを再生成してください。リポジトリの編集ルールは [`AGENTS.md`](AGENTS.md) を参照してください。
 
+## ライセンス
+
+このプロジェクトはデュアルライセンスで提供され、利用者は **MIT** または
+**Apache-2.0** のいずれかを選択できます。全文は[MITライセンス](LICENSE-MIT)と
+[Apache License 2.0](LICENSE-APACHE)を参照してください。MITライセンスの著作者表記は
+[GitHubユーザー `@namba3`](https://github.com/namba3) です。
+
 ## テスト
 
 OllamaやDocker MCPを起動せずにテストを実行できます。

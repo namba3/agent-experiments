@@ -119,6 +119,13 @@ After updating dependencies, run `uv lock`, then regenerate the pip file with
 `uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`.
 See [`AGENTS.md`](AGENTS.md) for repository editing guidance.
 
+## License
+
+This project is dual-licensed; users may choose either **MIT** or
+**Apache-2.0**. See the full text of the [MIT License](LICENSE-MIT) and
+[Apache License 2.0](LICENSE-APACHE). The MIT copyright attribution is to
+[GitHub user `@namba3`](https://github.com/namba3).
+
 ## Tests
 
 Run the tests without starting Ollama or Docker MCP:
