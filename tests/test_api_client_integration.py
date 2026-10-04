@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
+import tempfile
 import unittest
 from argparse import Namespace
 from contextlib import redirect_stdout
 from io import StringIO
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 from openai import AsyncOpenAI
@@ -266,6 +270,98 @@ class ApiClientHttpIntegrationTests(unittest.TestCase):
             ("test-model", "a cat", "stop"),
         )
         self.assertEqual(emitted["usage"]["total_tokens"], 5)
+
+
+class ApiClientCliIntegrationTests(unittest.TestCase):
+    def test_main_sends_cli_message_and_image_and_prints_json(self) -> None:
+        requests: list[httpx.Request] = []
+        clients: list[AsyncOpenAI] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json=completion_response("a cat"))
+
+        def client_factory(**kwargs: Any) -> AsyncOpenAI:
+            self.assertEqual(kwargs["base_url"], "https://agent.test/v1")
+            client = AsyncOpenAI(
+                **kwargs,
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            )
+            clients.append(client)
+            return client
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "cat.png"
+            image_path.write_bytes(b"hello")
+            argv = [
+                "agent_api_client.py",
+                "--base-url",
+                "https://agent.test",
+                "--model",
+                "test-model",
+                "--message",
+                "describe this",
+                "--image",
+                str(image_path),
+                "--temperature",
+                "0.25",
+                "--json",
+            ]
+            output = StringIO()
+            with (
+                patch.object(sys, "argv", argv),
+                patch.object(
+                    agent_api_client, "AsyncOpenAI", side_effect=client_factory
+                ),
+                redirect_stdout(output),
+            ):
+                exit_code = asyncio.run(agent_api_client.main())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(clients[0].is_closed())
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].url.path, "/v1/chat/completions")
+        request_body = json.loads(requests[0].content)
+        self.assertEqual(request_body["temperature"], 0.25)
+        image_parts = request_body["messages"][0]["content"]
+        self.assertEqual(image_parts[0], {"type": "text", "text": "describe this"})
+        self.assertEqual(
+            image_parts[1]["image_url"]["url"], "data:image/png;base64,aGVsbG8="
+        )
+        self.assertEqual(
+            json.loads(output.getvalue())["output"],
+            "a cat",
+        )
+
+    def test_main_returns_error_and_closes_client_on_api_failure(self) -> None:
+        clients: list[AsyncOpenAI] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, json={"error": {"message": "unavailable"}})
+
+        def client_factory(**kwargs: Any) -> AsyncOpenAI:
+            client = AsyncOpenAI(
+                **kwargs,
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            )
+            clients.append(client)
+            return client
+
+        argv = [
+            "agent_api_client.py",
+            "--model",
+            "test-model",
+            "--message",
+            "question",
+        ]
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(agent_api_client, "AsyncOpenAI", side_effect=client_factory),
+        ):
+            exit_code = asyncio.run(agent_api_client.main())
+
+        self.assertEqual(exit_code, 1)
+        self.assertTrue(clients[0].is_closed())
 
 
 if __name__ == "__main__":
