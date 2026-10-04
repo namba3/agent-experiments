@@ -14,7 +14,6 @@ import json
 import math
 import os
 import re
-import shlex
 import sys
 import time
 import uuid
@@ -41,6 +40,7 @@ MESSAGES_TO_KEEP = 6
 DEFAULT_MAX_REFINE_LOOPS = 2
 MAX_API_IMAGE_BYTES = 20 * 1024 * 1024
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
 
 @asynccontextmanager
 async def spinner(message: str):
@@ -91,7 +91,9 @@ def top_p_value(value: str) -> float:
     try:
         number = float(value)
     except ValueError as error:
-        raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください") from error
+        raise argparse.ArgumentTypeError(
+            "0 から 1 の有限数を指定してください"
+        ) from error
     if not math.isfinite(number) or not 0 <= number <= 1:
         raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください")
     return number
@@ -120,7 +122,9 @@ def parse_arguments() -> argparse.Namespace:
         help="Docker MCP gateway のツールを使う",
     )
     parser.set_defaults(without_docker_mcp=True)
-    parser.add_argument("--message", help="1回だけ送信するメッセージ。省略時は対話モード")
+    parser.add_argument(
+        "--message", help="1回だけ送信するメッセージ。省略時は対話モード"
+    )
     parser.add_argument(
         "--context-limit",
         type=positive_int,
@@ -141,9 +145,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--num-predict", type=positive_int, default=None, help="最大生成トークン数"
     )
-    parser.add_argument("--serve", action="store_true", help="OpenAI 互換 API サーバーを起動")
+    parser.add_argument(
+        "--serve", action="store_true", help="OpenAI 互換 API サーバーを起動"
+    )
     parser.add_argument("--host", default="127.0.0.1", help="API サーバーの待受ホスト")
-    parser.add_argument("--port", type=positive_int, default=8000, help="API サーバーのポート")
+    parser.add_argument(
+        "--port", type=positive_int, default=8000, help="API サーバーのポート"
+    )
     research_group = parser.add_mutually_exclusive_group()
     research_group.add_argument(
         "--enable-research",
@@ -269,7 +277,9 @@ async def run_agent(
         tools=tools,
     )
     async with agent:
-        if require_tools and not any(getattr(tool, "_functions", None) for tool in tools or []):
+        if require_tools and not any(
+            getattr(tool, "_functions", None) for tool in tools or []
+        ):
             raise ValueError(
                 "Docker MCP is enabled but the gateway did not provide any tools."
             )
@@ -363,10 +373,18 @@ async def compact_context(
 ) -> tuple[list[Message], str]:
     size = context_size(messages, summary)
     if size <= context_limit or len(messages) <= MESSAGES_TO_KEEP:
-        log_line(request_id, "compact", f"skipped (size={size}/{context_limit}, messages={len(messages)})")
+        log_line(
+            request_id,
+            "compact",
+            f"skipped (size={size}/{context_limit}, messages={len(messages)})",
+        )
         return messages, summary
 
-    log_line(request_id, "compact", f"compacting (size={size}/{context_limit}, messages={len(messages)})")
+    log_line(
+        request_id,
+        "compact",
+        f"compacting (size={size}/{context_limit}, messages={len(messages)})",
+    )
     old_messages = messages[:-MESSAGES_TO_KEEP]
     prompt = summary_prompt(summary)
     response = await run_agent(
@@ -378,7 +396,11 @@ async def compact_context(
     )
     summary = response_text(response)
     messages = messages[-MESSAGES_TO_KEEP:]
-    log_line(request_id, "compact", f"done (removed={len(old_messages)}, summary_len={len(summary)})")
+    log_line(
+        request_id,
+        "compact",
+        f"done (removed={len(old_messages)}, summary_len={len(summary)})",
+    )
     return messages, summary
 
 
@@ -464,7 +486,9 @@ async def prepare_turn(
         context_limit=context_limit,
         options=options,
     )
-    latest_user = next((message.text for message in reversed(messages) if message.role == "user"), "")
+    latest_user = next(
+        (message.text for message in reversed(messages) if message.role == "user"), ""
+    )
     answer_language = await detect_answer_language(latest_user, model, options=options)
 
     log_line(request_id, "route", "invoked")
@@ -494,7 +518,9 @@ async def prepare_turn(
         is_research = task_route == "RESEARCH"
         is_standard = task_route == "STANDARD"
         material_label = "research findings" if is_research else "draft answer"
-        phase = "research" if is_research else "standard_draft" if is_standard else "draft"
+        phase = (
+            "research" if is_research else "standard_draft" if is_standard else "draft"
+        )
         for refine_count in range(max_refine_loops + 1):
             log_line(request_id, phase, f"invoked (refine_count={refine_count})")
             if is_research:
@@ -582,7 +608,11 @@ async def run_final_answer(model: str, plan: TurnPlan) -> tuple[str, str]:
         if plan.fallback_answer:
             log_line(plan.request_id, "answer", "empty response, using fallback notes")
             answer = plan.fallback_answer
-    log_line(plan.request_id, "answer", f"done (answer_len={len(answer)}, elapsed={time.perf_counter() - started:.3f}s)")
+    log_line(
+        plan.request_id,
+        "answer",
+        f"done (answer_len={len(answer)}, elapsed={time.perf_counter() - started:.3f}s)",
+    )
     return answer, reasoning
 
 
@@ -630,7 +660,9 @@ def api_messages_to_agent(messages: list[dict[str, Any]]) -> list[Message]:
         if role in {"system", "developer", "assistant"}:
             if not isinstance(content, str):
                 raise ValueError(f"{role} message content must be text")
-            converted.append(Message("system" if role == "developer" else role, [content]))
+            converted.append(
+                Message("system" if role == "developer" else role, [content])
+            )
             continue
         if role != "user":
             raise ValueError(f"unsupported message role: {role}")
@@ -638,7 +670,9 @@ def api_messages_to_agent(messages: list[dict[str, Any]]) -> list[Message]:
             converted.append(Message("user", [content]))
             continue
         if not isinstance(content, list) or not content:
-            raise ValueError("user content must be text or a non-empty array of content parts")
+            raise ValueError(
+                "user content must be text or a non-empty array of content parts"
+            )
         parts: list[Content] = []
         for part in content:
             if not isinstance(part, dict):
@@ -649,13 +683,22 @@ def api_messages_to_agent(messages: list[dict[str, Any]]) -> list[Message]:
             if part.get("type") != "image_url":
                 raise ValueError("user content supports only text and image_url parts")
             image_value = part.get("image_url")
-            image_url = image_value.get("url") if isinstance(image_value, dict) else image_value
+            image_url = (
+                image_value.get("url") if isinstance(image_value, dict) else image_value
+            )
             if not isinstance(image_url, str):
                 raise ValueError("image_url must contain a URL string")
             header, separator, encoded = image_url.partition(",")
             media_type = header.removeprefix("data:").removesuffix(";base64")
-            if header != f"data:{media_type};base64" or media_type not in SUPPORTED_IMAGE_TYPES or not separator or not encoded:
-                raise ValueError("images must use a base64 data URL with JPEG, PNG, GIF, or WebP")
+            if (
+                header != f"data:{media_type};base64"
+                or media_type not in SUPPORTED_IMAGE_TYPES
+                or not separator
+                or not encoded
+            ):
+                raise ValueError(
+                    "images must use a base64 data URL with JPEG, PNG, GIF, or WebP"
+                )
             if len(encoded) > ((MAX_API_IMAGE_BYTES + 2) // 3) * 4:
                 raise ValueError("image exceeds the 20 MiB API limit")
             try:
@@ -680,12 +723,19 @@ def api_generation_options(
     request_temperature = request.get("temperature", temperature)
     if request_temperature is None:
         request_temperature = temperature
-    if isinstance(request_temperature, bool) or not isinstance(request_temperature, (int, float)) or not math.isfinite(request_temperature) or request_temperature < 0:
+    if (
+        isinstance(request_temperature, bool)
+        or not isinstance(request_temperature, (int, float))
+        or not math.isfinite(request_temperature)
+        or request_temperature < 0
+    ):
         raise ValueError("temperature must be a non-negative number")
     request_seed = request.get("seed", seed)
     if request_seed is None:
         request_seed = seed
-    if request_seed is not None and (isinstance(request_seed, bool) or not isinstance(request_seed, int)):
+    if request_seed is not None and (
+        isinstance(request_seed, bool) or not isinstance(request_seed, int)
+    ):
         raise ValueError("seed must be an integer")
     request_top_p = request.get("top_p", top_p)
     if request_top_p is None:
@@ -752,7 +802,10 @@ def run_server(
 
     @app.get("/v1/models")
     async def list_models() -> dict[str, Any]:
-        return {"object": "list", "data": [{"id": model, "object": "model", "owned_by": "ollama"}]}
+        return {
+            "object": "list",
+            "data": [{"id": model, "object": "model", "owned_by": "ollama"}],
+        }
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: dict[str, Any]):
@@ -772,6 +825,7 @@ def run_server(
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+
         async def prepare_request_plan() -> TurnPlan:
             try:
                 return await prepare_turn(
@@ -794,13 +848,20 @@ def run_server(
         created = int(datetime.now().timestamp())
 
         if request.get("stream"):
+
             async def stream_response() -> AsyncIterator[str]:
                 role = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
                     "created": created,
                     "model": model,
-                    "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None,
+                        }
+                    ],
                 }
                 yield f"data: {json.dumps(role, ensure_ascii=False)}\n\n"
                 try:
@@ -811,7 +872,13 @@ def run_server(
                             "object": "chat.completion.chunk",
                             "created": created,
                             "model": model,
-                            "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": chunk},
+                                    "finish_reason": None,
+                                }
+                            ],
                         }
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
                 except Exception as error:
@@ -819,7 +886,10 @@ def run_server(
                     yield 'data: {"error":{"message":"The response stream failed.","type":"server_error"}}\n\n'
                     yield "data: [DONE]\n\n"
                     return
-                print(f"[{request_id}] [server] answer completed in {time.perf_counter() - started:.3f}s", flush=True)
+                print(
+                    f"[{request_id}] [server] answer completed in {time.perf_counter() - started:.3f}s",
+                    flush=True,
+                )
                 finish = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
@@ -838,14 +908,23 @@ def run_server(
 
         plan = await prepare_request_plan()
         answer, _ = await run_final_answer(model, plan)
-        print(f"[{request_id}] [server] answer completed in {time.perf_counter() - started:.3f}s", flush=True)
+        print(
+            f"[{request_id}] [server] answer completed in {time.perf_counter() - started:.3f}s",
+            flush=True,
+        )
         return JSONResponse(
             {
                 "id": completion_id,
                 "object": "chat.completion",
                 "created": created,
                 "model": model,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": answer}, "finish_reason": "stop"}],
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": answer},
+                        "finish_reason": "stop",
+                    }
+                ],
             }
         )
 
@@ -898,11 +977,15 @@ async def main(args: argparse.Namespace) -> None:
             result, summary = await run_cli_turn(
                 model=model, messages=messages, summary=summary, args=args
             )
-        print(f"[{result.plan.request_id}] [cli] answer completed in {time.perf_counter() - started:.3f}s")
+        print(
+            f"[{result.plan.request_id}] [cli] answer completed in {time.perf_counter() - started:.3f}s"
+        )
         print_answer(result.answer, result.reasoning)
         return
 
-    print("CUI チャットを開始しました。終了するには /exit または /quit を入力してください。")
+    print(
+        "CUI チャットを開始しました。終了するには /exit または /quit を入力してください。"
+    )
     while True:
         try:
             user_message = await asyncio.to_thread(input, "> ")
@@ -921,7 +1004,9 @@ async def main(args: argparse.Namespace) -> None:
             )
         messages = result.plan.history
         messages.append(Message("assistant", [result.answer]))
-        print(f"[{result.plan.request_id}] [cli] answer completed in {time.perf_counter() - started:.3f}s")
+        print(
+            f"[{result.plan.request_id}] [cli] answer completed in {time.perf_counter() - started:.3f}s"
+        )
         print_answer(result.answer, result.reasoning)
 
 

@@ -158,7 +158,11 @@ def answer_prompt(
     instructions = (
         session_time_instruction(started_at)
         + "You are the main agent. "
-        + ("Answer the user's request using the notes below." if notes_section else "Answer the user's request.")
+        + (
+            "Answer the user's request using the notes below."
+            if notes_section
+            else "Answer the user's request."
+        )
         + " Do not mention internal phases or hidden reasoning. Answer entirely in "
         f"{answer_language}.\n\n{notes_section}"
     )

@@ -63,7 +63,9 @@ def top_p_value(value: str) -> float:
     try:
         number = float(value)
     except ValueError as error:
-        raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください") from error
+        raise argparse.ArgumentTypeError(
+            "0 から 1 の有限数を指定してください"
+        ) from error
     if not math.isfinite(number) or not 0 <= number <= 1:
         raise argparse.ArgumentTypeError("top-p は 0 から 1 の有限数で指定してください")
     return number
@@ -115,7 +117,9 @@ def usage_dict(usage: Any) -> dict[str, Any] | None:
 
 def trim_history(messages: list[dict[str, Any]], keep_turns: int) -> None:
     """Bound interactive history while retaining system prompts and full turns."""
-    system_messages = [message for message in messages if message.get("role") == "system"]
+    system_messages = [
+        message for message in messages if message.get("role") == "system"
+    ]
     dialogue = [message for message in messages if message.get("role") != "system"]
     keep_messages = keep_turns * 2
     if len(dialogue) > keep_messages:
@@ -155,13 +159,9 @@ async def api_call_with_spinner(
 
     if show_spinner:
         with console.status("[cyan]Agent API に問い合わせ中…[/cyan]", spinner="dots"):
-            response = await client.chat.completions.create(
-                **request, timeout=timeout
-            )
+            response = await client.chat.completions.create(**request, timeout=timeout)
     else:
-        response = await client.chat.completions.create(
-            **request, timeout=timeout
-        )
+        response = await client.chat.completions.create(**request, timeout=timeout)
 
     if stream:
         parts: list[str] = []
@@ -200,9 +200,7 @@ def add_sampling_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def print_result_metadata(
-    *, model: str, elapsed: float, result: ApiResult
-) -> None:
+def print_result_metadata(*, model: str, elapsed: float, result: ApiResult) -> None:
     usage = result.usage or {}
     tokens = usage.get("total_tokens")
     details = [f"model={model}", f"time={elapsed:.2f}s"]
@@ -276,7 +274,9 @@ async def send_turn(
 async def main() -> int:
     parser = argparse.ArgumentParser(description="OpenAI 互換 Agent API クライアント")
     input_group = parser.add_mutually_exclusive_group()
-    input_group.add_argument("--message", type=str, default=None, help="送信するメッセージ")
+    input_group.add_argument(
+        "--message", type=str, default=None, help="送信するメッセージ"
+    )
     input_group.add_argument(
         "--message-file", type=Path, default=None, help="UTF-8 のメッセージファイル"
     )
@@ -310,7 +310,10 @@ async def main() -> int:
         "--stream", action="store_true", help="生成中のテキストを逐次表示する"
     )
     parser.add_argument(
-        "--json", dest="json_output", action="store_true", help="応答メタデータを JSON で出力"
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="応答メタデータを JSON で出力",
     )
     add_sampling_arguments(parser)
     args = parser.parse_args()
@@ -337,7 +340,9 @@ async def main() -> int:
         initial_message = await read_stdin_message()
 
     if not args.interactive and not initial_message.strip():
-        parser.error("メッセージが空です。--message、--message-file、または標準入力で指定してください。")
+        parser.error(
+            "メッセージが空です。--message、--message-file、または標準入力で指定してください。"
+        )
     if args.model is not None and not args.model.strip():
         parser.error("--model に空文字列は指定できません")
     if not args.base_url.strip():
@@ -361,9 +366,7 @@ async def main() -> int:
             messages.append({"role": "system", "content": args.system})
 
         if args.interactive:
-            console.print(
-                f"[dim]model: {model} | /exit または /quit で終了[/dim]"
-            )
+            console.print(f"[dim]model: {model} | /exit または /quit で終了[/dim]")
             pending_image = image_data_url
             while True:
                 try:

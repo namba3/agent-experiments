@@ -20,7 +20,12 @@ import time
 import uuid
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    RemoveMessage,
+    SystemMessage,
+)
 from langchain_ollama import ChatOllama
 from ollama import Client
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -45,6 +50,7 @@ MESSAGES_TO_KEEP = 6
 DEFAULT_MAX_REFINE_LOOPS = 2
 MAX_API_IMAGE_BYTES = 20 * 1024 * 1024
 
+
 class AgentState(MessagesState):
     """Graph state including compacted context and phase notes."""
 
@@ -59,6 +65,7 @@ class AgentState(MessagesState):
     task_route: str
     request_id: str
     generation_options: dict[str, Any]
+
 
 @asynccontextmanager
 async def spinner(message: str):
@@ -84,6 +91,7 @@ async def spinner(message: str):
         sys.stderr.write(f"\r{' ' * (len(message) + 2)}\r\n")
         sys.stderr.flush()
 
+
 def positive_int(value: str) -> int:
     """argparse 用の 1 以上の整数型。"""
     try:
@@ -93,6 +101,7 @@ def positive_int(value: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError("1 以上の整数を指定してください")
     return number
+
 
 def non_negative_float(value: str) -> float:
     """argparse 用の 0 以上の有限数型。"""
@@ -104,15 +113,19 @@ def non_negative_float(value: str) -> float:
         raise argparse.ArgumentTypeError("0 以上の有限数を指定してください")
     return number
 
+
 def top_p_value(value: str) -> float:
     """argparse 用の 0 から 1 までの有限数型。"""
     try:
         number = float(value)
     except ValueError as error:
-        raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください") from error
+        raise argparse.ArgumentTypeError(
+            "0 から 1 の有限数を指定してください"
+        ) from error
     if not math.isfinite(number) or not 0 <= number <= 1:
         raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください")
     return number
+
 
 def new_request_id() -> str:
     """Short id used to correlate all node logs for a single request/turn."""
@@ -168,7 +181,7 @@ async def detect_answer_language(
             [
                 SystemMessage(content=language_detection_prompt()),
                 HumanMessage(content=text),
-            ]
+            ],
         )
         content = getattr(response, "content", "")
         if not isinstance(content, str):
@@ -185,11 +198,14 @@ async def detect_answer_language(
         return "Japanese"
     return "English"
 
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ollama を使う LangGraph WeatherAgent のテスト"
     )
-    parser.add_argument("--model", required=True, help="使用する Ollama モデル名（必須）")
+    parser.add_argument(
+        "--model", required=True, help="使用する Ollama モデル名（必須）"
+    )
     mcp_group = parser.add_mutually_exclusive_group()
     mcp_group.add_argument(
         "--without-docker-mcp",
@@ -251,7 +267,9 @@ def parse_arguments() -> argparse.Namespace:
         help="OpenAI 互換 API サーバーを起動する",
     )
     parser.add_argument("--host", default="127.0.0.1", help="API サーバーの待受ホスト")
-    parser.add_argument("--port", type=positive_int, default=8000, help="API サーバーのポート")
+    parser.add_argument(
+        "--port", type=positive_int, default=8000, help="API サーバーのポート"
+    )
     research_group = parser.add_mutually_exclusive_group()
     research_group.add_argument(
         "--enable-research",
@@ -285,6 +303,7 @@ def parse_arguments() -> argparse.Namespace:
         parser.error("--enable-research には --with-docker-mcp も必要です")
     return args
 
+
 def extract_reasoning(message: AIMessage) -> str:
     """Extract reasoning exposed by ChatOllama, across supported formats."""
     additional_kwargs: dict[str, Any] = message.additional_kwargs or {}
@@ -296,9 +315,9 @@ def extract_reasoning(message: AIMessage) -> str:
     return "".join(
         block.get("reasoning") or block.get("thinking") or block.get("text", "")
         for block in blocks
-        if isinstance(block, dict)
-        and block.get("type") in {"reasoning", "thinking"}
+        if isinstance(block, dict) and block.get("type") in {"reasoning", "thinking"}
     )
+
 
 def unload_ollama_model(model: str) -> None:
     """Unload the selected Ollama model from memory."""
@@ -311,6 +330,7 @@ def unload_ollama_model(model: str) -> None:
         print(f"Ollama model unloaded: {model}", file=sys.stderr)
     except Exception as error:
         print(f"Could not unload Ollama model {model}: {error}", file=sys.stderr)
+
 
 def api_content_text(content: Any) -> str:
     """Extract text portions from OpenAI-compatible multimodal content."""
@@ -382,7 +402,9 @@ def api_messages_to_langchain(messages: list[dict[str, Any]]) -> list[Any]:
                         {"type": "image_url", "image_url": {"url": image_url}}
                     )
                 else:
-                    raise ValueError("user content supports only text and image_url parts")
+                    raise ValueError(
+                        "user content supports only text and image_url parts"
+                    )
             content = normalized_content
         elif role == "user" and not isinstance(content, str):
             raise ValueError("user content must be text or an array of content parts")
@@ -412,9 +434,12 @@ def api_generation_options(
     request_temperature = request.get("temperature", temperature)
     if request_temperature is None:
         request_temperature = temperature
-    if isinstance(request_temperature, bool) or not isinstance(
-        request_temperature, (int, float)
-    ) or not math.isfinite(request_temperature) or request_temperature < 0:
+    if (
+        isinstance(request_temperature, bool)
+        or not isinstance(request_temperature, (int, float))
+        or not math.isfinite(request_temperature)
+        or request_temperature < 0
+    ):
         raise ValueError("temperature must be a non-negative number")
 
     request_seed = request.get("seed", seed)
@@ -453,6 +478,7 @@ def api_generation_options(
     if request_num_predict is not None:
         options["num_predict"] = request_num_predict
     return options
+
 
 def run_server(
     model: str,
@@ -565,6 +591,7 @@ def run_server(
         created = int(datetime.now().timestamp())
 
         if request.get("stream"):
+
             async def stream_response():
                 role = {
                     "id": completion_id,
@@ -572,7 +599,11 @@ def run_server(
                     "created": created,
                     "model": model,
                     "choices": [
-                        {"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None,
+                        }
                     ],
                 }
                 yield f"data: {json.dumps(role, ensure_ascii=False)}\n\n"
@@ -591,7 +622,9 @@ def run_server(
                             if isinstance(output, dict):
                                 output_messages = output.get("messages", [])
                                 if output_messages:
-                                    content = getattr(output_messages[-1], "content", "")
+                                    content = getattr(
+                                        output_messages[-1], "content", ""
+                                    )
                         if not isinstance(content, str) or not content:
                             continue
                         sent_text = True
@@ -622,15 +655,16 @@ def run_server(
                     return
 
                 elapsed = time.perf_counter() - request_started_at
-                print(f"[{request_id}] [server] answer completed in {elapsed:.3f}s", flush=True)
+                print(
+                    f"[{request_id}] [server] answer completed in {elapsed:.3f}s",
+                    flush=True,
+                )
                 finish = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
                     "created": created,
                     "model": model,
-                    "choices": [
-                        {"index": 0, "delta": {}, "finish_reason": "stop"}
-                    ],
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
                 yield f"data: {json.dumps(finish, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -666,6 +700,7 @@ def run_server(
         uvicorn.run(app, host=host, port=port)
     finally:
         unload_ollama_model(model)
+
 
 async def build_graph(
     model: str,
@@ -719,9 +754,7 @@ async def build_graph(
 
     tool_node = ToolNode(tools, handle_tool_errors=True) if tools else None
 
-    def llm_for_state(
-        state: AgentState, *, reasoning: bool, bind_tools: bool = False
-    ):
+    def llm_for_state(state: AgentState, *, reasoning: bool, bind_tools: bool = False):
         request_options = state.get("generation_options", {})
         options = dict(llm_kwargs)
         options.update(
@@ -826,13 +859,15 @@ async def build_graph(
         log_line(state, "research", f"invoked (refine_count={refine_count})")
         instruction = research_prompt(
             started_at=state.get("conversation_started_at", "unknown"),
-            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            refine_count=(
+                refine_count if state.get("verification_status") != "OK" else 0
+            ),
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
         response = await invoke_and_close_chat_model(
             llm_for_state(state, reasoning=True, bind_tools=True),
-            [SystemMessage(content=instruction), *context_messages(state)]
+            [SystemMessage(content=instruction), *context_messages(state)],
         )
         tool_call_count = len(getattr(response, "tool_calls", None) or [])
         log_line(
@@ -851,13 +886,11 @@ async def build_graph(
             [
                 SystemMessage(
                     content=(
-                        route_prompt(
-                            state.get("conversation_started_at", "unknown")
-                        )
+                        route_prompt(state.get("conversation_started_at", "unknown"))
                     )
                 ),
                 *context_messages(state),
-            ]
+            ],
         )
         route = message_text(response).strip().upper()
         if "RESEARCH" in route and not disable_research:
@@ -888,7 +921,9 @@ async def build_graph(
         return result
 
     def route_research(state: AgentState) -> str:
-        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "verify"
+        return (
+            "tools" if getattr(state["messages"][-1], "tool_calls", None) else "verify"
+        )
 
     def route_answer(state: AgentState) -> str:
         return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "end"
@@ -901,13 +936,15 @@ async def build_graph(
         instruction = draft_prompt(
             started_at=state.get("conversation_started_at", "unknown"),
             standard=False,
-            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            refine_count=(
+                refine_count if state.get("verification_status") != "OK" else 0
+            ),
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
         response = await invoke_and_close_chat_model(
             llm_for_state(state, reasoning=True),
-            [SystemMessage(content=instruction), *context_messages(state)]
+            [SystemMessage(content=instruction), *context_messages(state)],
         )
         log_line(state, "draft", f"done (draft_len={len(message_text(response))})")
         return {"draft_notes": message_text(response)}
@@ -920,15 +957,19 @@ async def build_graph(
         instruction = draft_prompt(
             started_at=state.get("conversation_started_at", "unknown"),
             standard=True,
-            refine_count=(refine_count if state.get("verification_status") != "OK" else 0),
+            refine_count=(
+                refine_count if state.get("verification_status") != "OK" else 0
+            ),
             max_refine_loops=max_refine_loops,
             verification_notes=state.get("verification_notes", ""),
         )
         response = await invoke_and_close_chat_model(
             llm_for_state(state, reasoning=False),
-            [SystemMessage(content=instruction), *context_messages(state)]
+            [SystemMessage(content=instruction), *context_messages(state)],
         )
-        log_line(state, "standard_draft", f"done (draft_len={len(message_text(response))})")
+        log_line(
+            state, "standard_draft", f"done (draft_len={len(message_text(response))})"
+        )
         return {"draft_notes": message_text(response)}
 
     def route_after_classification(state: AgentState) -> str:
@@ -975,10 +1016,12 @@ async def build_graph(
                     )
                 ),
                 *context_messages(state),
-            ]
+            ],
         )
         raw_notes = message_text(response)
-        status_match = re.search(r"STATUS:\s*(OK|NEEDS_REVISION)\s*$", raw_notes.strip())
+        status_match = re.search(
+            r"STATUS:\s*(OK|NEEDS_REVISION)\s*$", raw_notes.strip()
+        )
         if status_match:
             status = status_match.group(1)
             notes = raw_notes[: status_match.start()].strip()
@@ -993,7 +1036,9 @@ async def build_graph(
         # Unverified or malformed verifier output consumes the same bounded
         # retry budget as a requested revision.
         new_refine_count = (
-            refine_count + 1 if status in {"NEEDS_REVISION", "INVALID"} else refine_count
+            refine_count + 1
+            if status in {"NEEDS_REVISION", "INVALID"}
+            else refine_count
         )
         log_line(
             state,
@@ -1020,7 +1065,7 @@ async def build_graph(
         )
         response = await invoke_and_close_chat_model(
             llm_for_state(state, reasoning=True, bind_tools=True),
-            [SystemMessage(content=instruction), *context_messages(state)]
+            [SystemMessage(content=instruction), *context_messages(state)],
         )
         if not message_text(response).strip():
             # 一部の reasoning 対応モデルが空の本文を返した場合の保険。
@@ -1054,7 +1099,12 @@ async def build_graph(
     builder.add_conditional_edges(
         "route",
         route_after_classification,
-        {"research": "research", "draft": "draft", "standard_draft": "standard_draft", "answer": "answer"},
+        {
+            "research": "research",
+            "draft": "draft",
+            "standard_draft": "standard_draft",
+            "answer": "answer",
+        },
     )
     # draft and standard_draft never use tools (no external investigation),
     # so they always go straight to verification regardless of tool availability.
@@ -1079,9 +1129,15 @@ async def build_graph(
     builder.add_conditional_edges(
         "verify",
         route_after_verify,
-        {"refine_research": "research", "refine_draft": "draft", "refine_standard": "standard_draft", "answer": "answer"},
+        {
+            "refine_research": "research",
+            "refine_draft": "draft",
+            "refine_standard": "standard_draft",
+            "answer": "answer",
+        },
     )
     return builder.compile()
+
 
 async def main(
     model: str,
@@ -1110,9 +1166,7 @@ async def main(
         top_p,
         num_predict,
     )
-    conversation_started_at = datetime.now().astimezone().isoformat(
-        timespec="seconds"
-    )
+    conversation_started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     if message is not None:
         messages = [HumanMessage(content=message)]
         request_id = new_request_id()
@@ -1140,7 +1194,9 @@ async def main(
         print_answer(result["messages"][-1])
         return
 
-    print("CUI チャットを開始しました。終了するには /exit または /quit を入力してください。")
+    print(
+        "CUI チャットを開始しました。終了するには /exit または /quit を入力してください。"
+    )
     state: dict[str, Any] = {
         "messages": [],
         "conversation_started_at": conversation_started_at,
@@ -1184,11 +1240,15 @@ async def main(
         print(f"[{state['request_id']}] [cli] answer completed in {elapsed:.3f}s")
         print_answer(state["messages"][-1])
 
+
 def print_answer(last_message: Any) -> None:
-    reasoning = extract_reasoning(last_message) if isinstance(last_message, AIMessage) else ""
+    reasoning = (
+        extract_reasoning(last_message) if isinstance(last_message, AIMessage) else ""
+    )
     print(f"Reasoning: {reasoning}")
     print("==================================")
     print(last_message.content)
+
 
 if __name__ == "__main__":
     args = parse_arguments()
