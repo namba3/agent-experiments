@@ -84,6 +84,26 @@ def positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError("1 以上の整数を指定してください")
     return number
 
+def non_negative_float(value: str) -> float:
+    """argparse 用の 0 以上の有限数型。"""
+    try:
+        number = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("0 以上の有限数を指定してください") from error
+    if not math.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError("0 以上の有限数を指定してください")
+    return number
+
+def top_p_value(value: str) -> float:
+    """argparse 用の 0 から 1 までの有限数型。"""
+    try:
+        number = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください") from error
+    if not math.isfinite(number) or not 0 <= number <= 1:
+        raise argparse.ArgumentTypeError("0 から 1 の有限数を指定してください")
+    return number
+
 def new_request_id() -> str:
     """Short id used to correlate all node logs for a single request/turn."""
     return uuid.uuid4().hex[:8]
@@ -182,7 +202,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--temperature",
-        type=float,
+        type=non_negative_float,
         default=0.7,
         help="Ollama の temperature（デフォルト: 0.7）",
     )
@@ -194,13 +214,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--top-p",
-        type=float,
+        type=top_p_value,
         default=None,
         help="Ollama の top_p（省略時は未指定）",
     )
     parser.add_argument(
         "--num-predict",
-        type=int,
+        type=positive_int,
         default=None,
         help="Ollama の num_predict（省略時は未指定）",
     )
@@ -235,7 +255,10 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Disable DIRECT route (force to MODERATED if detected)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.disable_research and args.without_docker_mcp:
+        parser.error("--enable-research には --with-docker-mcp も必要です")
+    return args
 
 def extract_reasoning(message: AIMessage) -> str:
     """Extract reasoning exposed by ChatOllama, across supported formats."""
@@ -651,6 +674,11 @@ async def build_graph(
             }
         )
         tools.extend(await client.get_tools())
+    if not disable_research and not tools:
+        raise ValueError(
+            "The RESEARCH route requires available Docker MCP tools; "
+            "enable Docker MCP and check that the gateway provides tools."
+        )
 
     llm_kwargs: dict[str, Any] = {
         "base_url": "http://localhost:11434",
@@ -845,10 +873,12 @@ async def build_graph(
         last_message = state["messages"][-1]
         tool_calls = getattr(last_message, "tool_calls", []) or []
         for tool_call in tool_calls:
+            tool_args = tool_call.get("args", {})
+            arg_count = len(tool_args) if isinstance(tool_args, dict) else 0
             log_line(
                 state,
                 "tools",
-                f"call name={tool_call['name']} args={tool_call.get('args', {})}",
+                f"call name={tool_call['name']} arg_count={arg_count}",
             )
         assert tool_node is not None
         result = await tool_node.ainvoke(state)

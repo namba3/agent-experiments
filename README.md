@@ -73,9 +73,14 @@ python langgraph_api_client.py --message "Summarize this image." --image path/to
 
 - Docker MCP は LangGraph エージェントでは既定で無効です。`--with-docker-mcp`
   で有効にできます。Agent Framework の例では常に接続します。
-- `--enable-research` を指定すると LangGraph の RESEARCH 経路を有効にします。
+- `--enable-research` でRESEARCH経路を使うには、利用可能なツールが必要なため
+  `--with-docker-mcp` も指定してください。
 - `langgraph_api_client.py` は既定で `http://127.0.0.1:8000/v1` に接続します。
 - 画像添付は JPEG、PNG、GIF、WebP に対応し、最大サイズは 20 MiB です。
+
+```bash
+python langgraph_agent.py --model <ollama-model> --enable-research --with-docker-mcp
+```
 
 依存パッケージは [`requirements.txt`](requirements.txt)、リポジトリの編集ルールは
 [`AGENTS.md`](AGENTS.md) を参照してください。

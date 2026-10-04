@@ -74,9 +74,14 @@ Run any script with `--help` to see all available options.
 
 - Docker MCP is disabled by default in the LangGraph agent. Enable it with
   `--with-docker-mcp`. The Agent Framework example always connects to it.
-- Enable the LangGraph RESEARCH route with `--enable-research`.
+- The RESEARCH route requires available tools, so pass both
+  `--enable-research` and `--with-docker-mcp`.
 - `langgraph_api_client.py` connects to `http://127.0.0.1:8000/v1` by default.
 - Image attachments support JPEG, PNG, GIF, and WebP, up to 20 MiB.
+
+```bash
+python langgraph_agent.py --model <ollama-model> --enable-research --with-docker-mcp
+```
 
 See [`requirements.txt`](requirements.txt) for dependencies and [`AGENTS.md`](AGENTS.md)
 for repository editing guidance.
