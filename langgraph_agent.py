@@ -205,9 +205,7 @@ async def detect_answer_language(
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Ollama を使う LangGraph WeatherAgent のテスト"
-    )
+    parser = argparse.ArgumentParser(description="Ollama を使う LangGraph エージェント")
     parser.add_argument(
         "--model", required=True, help="使用する Ollama モデル名（必須）"
     )

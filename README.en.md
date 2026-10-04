@@ -15,8 +15,17 @@ with Agent Framework and LangGraph, plus a shared OpenAI-compatible API client.
 
 ## Setup
 
-Python 3.10 or later and Ollama are required. Create a virtual environment and
-install the dependencies:
+Python 3.10 or later and Ollama are required. We recommend uv to create the
+virtual environment and install the locked dependencies:
+
+```bash
+uv sync --locked
+source .venv/bin/activate
+```
+
+`uv sync` creates `.venv` and installs runtime dependencies plus Ruff. To use pip
+instead, create and activate a virtual environment, then install the locked
+`requirements.txt`:
 
 ```bash
 python -m venv .venv
@@ -24,7 +33,8 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-In Windows PowerShell, activate the virtual environment with:
+In Windows PowerShell, activate the environment after syncing with uv or creating
+the pip virtual environment:
 
 ```powershell
 .venv\Scripts\Activate.ps1
@@ -91,15 +101,30 @@ Run any script with `--help` to see all available options.
 python agent_framework_agent.py --model <ollama-model> --enable-research --with-docker-mcp
 ```
 
-See [`requirements.txt`](requirements.txt) for dependencies and [`AGENTS.md`](AGENTS.md)
-for repository editing guidance.
+Direct dependencies are listed in [`pyproject.toml`](pyproject.toml), and
+[`uv.lock`](uv.lock) pins versions and hashes for the full dependency tree.
+`requirements.txt` is generated from the lockfile.
+
+## Development checks
+
+Run static checks and tests in the locked development environment:
+
+```bash
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked python -W error::ResourceWarning -m unittest discover -v
+```
+
+After updating dependencies, run `uv lock`, then regenerate the pip file with
+`uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`.
+See [`AGENTS.md`](AGENTS.md) for repository editing guidance.
 
 ## Tests
 
-Run the unit tests without starting Ollama or Docker MCP:
+Run the tests without starting Ollama or Docker MCP:
 
 ```bash
-python -m unittest discover -v
+uv run --locked python -m unittest discover -v
 ```
 
 HTTP integration tests start the lightweight Ollama API simulator in

@@ -16,8 +16,17 @@ LangGraph の Ollama エージェント、および両エージェント用の O
 
 ## セットアップ
 
-Python 3.10 以降と Ollama が必要です。仮想環境を作成して依存パッケージを
-インストールします。
+Python 3.10 以降と Ollama が必要です。推奨のuvを使うと、ロックファイルに従って
+仮想環境と依存パッケージを用意できます。
+
+```bash
+uv sync --locked
+source .venv/bin/activate
+```
+
+`uv sync` は `.venv` を作成し、実行時依存とRuffをインストールします。uvを使わず
+pipでインストールする場合は、仮想環境を作成・有効化してからロック済みの
+`requirements.txt` を使います。
 
 ```bash
 python -m venv .venv
@@ -25,7 +34,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Windows PowerShell では、仮想環境の有効化に次を使います。
+Windows PowerShell ではuv同期後、またはpip用の仮想環境作成後に次のコマンドで有効化します。
 
 ```powershell
 .venv\Scripts\Activate.ps1
@@ -89,15 +98,28 @@ python agent_api_client.py --message "Summarize this image." --image path/to/ima
 python agent_framework_agent.py --model <ollama-model> --enable-research --with-docker-mcp
 ```
 
-依存パッケージは [`requirements.txt`](requirements.txt)、リポジトリの編集ルールは
-[`AGENTS.md`](AGENTS.md) を参照してください。
+直接依存は [`pyproject.toml`](pyproject.toml) に記載し、[`uv.lock`](uv.lock) に全依存の
+バージョンとハッシュを固定しています。`requirements.txt` はロックファイルから生成します。
+
+## 開発チェック
+
+ロック済みの開発環境で静的チェックとテストを実行します。
+
+```bash
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked python -W error::ResourceWarning -m unittest discover -v
+```
+
+依存の更新後は `uv lock` を実行し、`uv export --no-dev --locked --format requirements-txt --output-file requirements.txt`
+でpip用ファイルを再生成してください。リポジトリの編集ルールは [`AGENTS.md`](AGENTS.md) を参照してください。
 
 ## テスト
 
-OllamaやDocker MCPを起動せずに単体テストを実行できます。
+OllamaやDocker MCPを起動せずにテストを実行できます。
 
 ```bash
-python -m unittest discover -v
+uv run --locked python -m unittest discover -v
 ```
 
 HTTP連携のテストでは `tests/fake_ollama_server.py` の軽量Ollama APIシミュレーターを
