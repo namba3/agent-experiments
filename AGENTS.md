@@ -33,3 +33,9 @@ entry point.
 - Keep changes focused on the requested script or documentation.
 - Inspect the final diff and stage only files relevant to the task before
   committing.
+
+## Code Review
+
+When performing a code review, read and follow the guidelines in
+[REVIEW.md](./REVIEW.md). These guidelines apply to code review tasks; for
+regular development work, follow the instructions above.
