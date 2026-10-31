@@ -53,6 +53,8 @@ jobs:
           uv run --locked python -m py_compile
           agent_api_client.py
           agent_framework_agent.py
+          agent_framework_mcp.py
           agent_prompts.py
           langgraph_agent.py
+          langgraph_mcp.py
           tests/*.py

@@ -57,7 +57,10 @@ python agent_framework_agent.py --model <ollama-model> --message "Explain how RA
 
 Pass `--with-docker-mcp` to use the Docker MCP gateway. Set the
 `DOCKER_MCP_COMMAND` environment variable to select the Docker executable; it
-defaults to `docker`.
+defaults to `docker`. The MCP adapter modules are imported only when enabled;
+normal startup does not import the application's MCP adapter modules.
+Gateway errors are visible on stderr when MCP is enabled. MCP packages are
+still part of the base dependencies for now.
 
 Run the LangGraph agent interactively or pass it a single message:
 
