@@ -55,6 +55,9 @@ python agent_framework_agent.py --model <ollama-model> --message "Explain how RA
 
 Docker MCP gateway を使う場合は `--with-docker-mcp` を指定します。
 `DOCKER_MCP_COMMAND` 環境変数で Docker 実行ファイルを指定でき、省略時は `docker` を使います。
+MCP アダプターは有効時にのみ読み込まれ、通常起動ではアプリケーションの
+MCP 専用モジュールを import しません。MCP 有効時の gateway エラーは stderr に表示されます。
+なお、MCP の依存パッケージ自体は現時点では通常依存に含まれています。
 
 LangGraph エージェントを対話モードで起動するか、1つのメッセージを渡します。
 

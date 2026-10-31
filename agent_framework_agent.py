@@ -19,7 +19,7 @@ import time
 import uuid
 from typing import Any, AsyncIterator
 
-from agent_framework import Agent, Content, MCPStdioTool, Message
+from agent_framework import Agent, Content, Message
 from agent_framework.ollama import OllamaChatClient
 from ollama import Client
 from agent_prompts import (
@@ -32,9 +32,7 @@ from agent_prompts import (
     verification_prompt,
 )
 
-DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
 DEFAULT_CONTEXT_LIMIT = 12000
 MESSAGES_TO_KEEP = 6
 DEFAULT_MAX_REFINE_LOOPS = 2
@@ -251,12 +249,11 @@ def generation_options(
     return options
 
 
-def mcp_tool() -> MCPStdioTool:
-    return MCPStdioTool(
-        name="DockerMcp",
-        command=DOCKER_MCP_COMMAND,
-        args=list(DOCKER_MCP_ARGS),
-    )
+def mcp_tool() -> Any:
+    """Resolve the optional MCP adapter only when tools are requested."""
+    from agent_framework_mcp import create_docker_mcp_tool
+
+    return create_docker_mcp_tool()
 
 
 async def run_agent(

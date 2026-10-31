@@ -14,7 +14,6 @@ import json
 import math
 import os
 import re
-import shlex
 import sys
 import time
 import uuid
@@ -28,7 +27,6 @@ from langchain_core.messages import (
 )
 from langchain_ollama import ChatOllama
 from ollama import Client
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from agent_prompts import (
@@ -41,10 +39,7 @@ from agent_prompts import (
     verification_prompt,
 )
 
-DOCKER_MCP_COMMAND = os.environ.get("DOCKER_MCP_COMMAND", "docker")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-DOCKER_MCP_ARGS = ["mcp", "gateway", "run", "--profile", "default"]
-DOCKER_MCP_SILENT_COMMAND = "sh"
 DEFAULT_CONTEXT_LIMIT = 12000
 MESSAGES_TO_KEEP = 6
 DEFAULT_MAX_REFINE_LOOPS = 2
@@ -722,21 +717,9 @@ async def build_graph(
     compaction."""
     tools: list[Any] = []
     if not without_docker_mcp:
-        client = MultiServerMCPClient(
-            {
-                "docker": {
-                    "transport": "stdio",
-                    # MCP 通信の stdout は維持し、gateway の stderr だけ抑制する。
-                    "command": DOCKER_MCP_SILENT_COMMAND,
-                    "args": [
-                        "-c",
-                        f"exec {shlex.join([DOCKER_MCP_COMMAND, *DOCKER_MCP_ARGS])} "
-                        "2>/dev/null",
-                    ],
-                }
-            }
-        )
-        tools.extend(await client.get_tools())
+        from langgraph_mcp import load_docker_mcp_tools
+
+        tools.extend(await load_docker_mcp_tools())
     if not disable_research and not tools:
         raise ValueError(
             "The RESEARCH route requires available Docker MCP tools; "
